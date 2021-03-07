@@ -26,6 +26,7 @@ output/.s: src
 images: dist/.images
 
 dist/.images: data
+	mkdir -p dist
 	cp -f data/* dist/
 	@touch dist/.images
 
