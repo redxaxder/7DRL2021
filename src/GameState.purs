@@ -5,8 +5,10 @@ import Framework.Direction (Direction, move)
 import Data.Set as Set
 import Data.Map as Map
 import Data.Array as Array
-import Data.LinearIndex (LinearIndex)
-import Data.LinearIndex as LinearIndex
+import Data.LinearIndex (LinearIndex (..))
+import Data.LinearIndex as LI
+import Data.String as String
+import Data.String.CodeUnits (toCharArray)
 import Data.Tuple as Tuple
 import Random.Gen as R
 
@@ -17,11 +19,66 @@ newState = do
    { p: V {x: 1, y:1}
    , playerHealth: freshPlayerHealth
    , enemies: Map.empty
-   , terrain: LinearIndex.fill 40 40 Floor -- TODO: adjust dimensions
+   , terrain: fromMaybe (LI.fill 40 40 Floor) (freshTerrainFromString demoTerrain)-- TODO: adjust dimensions
    , rng: random
    }
 
 data Terrain = Wall | Floor | Exit
+
+charToTerrain :: Char -> Terrain
+charToTerrain '.' = Floor
+charToTerrain '>' = Exit
+charToTerrain _ = Wall
+
+freshTerrainFromString :: String -> Maybe (LinearIndex Terrain)
+freshTerrainFromString s = if String.length s == 40*40 then Just $ LinearIndex {width: 40, height: 40, values: t} else Nothing
+  where
+    t = map charToTerrain $ toCharArray s
+
+demoTerrain :: String
+demoTerrain = """
+########################################
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#..................................>...#
+#......................................#
+#......................................#
+#......................................#
+########################################
+"""
 
 freshPlayerHealth :: Health
 freshPlayerHealth = Health
@@ -65,7 +122,7 @@ step (GameState gs) a@(Move dir) =
    in if inBounds p'
       then Right (GameState gs {p = p'})
       else Left (FailedAction dir)
-step _ _ = todo
+step (GameState gs) _ = Right $ GameState gs
 
 inBounds :: Vector Int -> Boolean
 inBounds (V{x,y}) =  -- TODO: fix this
@@ -109,4 +166,3 @@ newtype Board = Board
   -- , organIndex :: Map BoardCoord Organ
   , injuries :: Set BoardCoord
   }
-
