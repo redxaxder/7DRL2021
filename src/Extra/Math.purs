@@ -23,6 +23,9 @@ instance realInt :: Real Int where
 
 newtype Vector a = V { x :: a, y :: a }
 
+vec :: forall a. a -> a -> Vector a
+vec x y = V{x,y}
+
 derive newtype instance showVector :: Show a => Show (Vector a)
 derive newtype instance semigroupVector :: Semigroup a => Semigroup (Vector a)
 derive newtype instance monoidVector :: Monoid a => Monoid (Vector a)
