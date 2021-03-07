@@ -82,7 +82,7 @@ runUI currentUI gs = do
       { keyDown: \key -> case getDir key of
            Nothing -> default unit
            Just d -> do
-             result <- F.action (GameAction time d)
+             result <- F.action (Move d)
              let gs' = either (const gs) identity result
              runUI (updateUIState time gs result currentUI) gs'
       , pointerDown: \ptr ->

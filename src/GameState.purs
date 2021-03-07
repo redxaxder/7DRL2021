@@ -38,11 +38,12 @@ playerHpOrgan :: Organ
 playerHpOrgan = Organ (OrganSize 2 2) Hp
 
 step :: GameState -> GameAction -> Either FailedAction GameState
-step (GameState gs) a@(GameAction _ dir) =
+step (GameState gs) a@(Move dir) =
   let p' = move dir gs.p
    in if inBounds p'
       then Right (GameState gs {p = p'})
       else Left (FailedAction dir)
+step _ _ = todo
 
 inBounds :: Vector Int -> Boolean
 inBounds (V{x,y}) = 
@@ -51,11 +52,20 @@ inBounds (V{x,y}) =
 newtype GameState = GameState
   { p :: Vector Int
   -- , playerHealth :: Health
-  --, enemies :: Array Enemy
+  --, enemies :: Map EnemyId Enemy
   }
-data GameAction = GameAction Instant Direction
-data FailedAction = FailedAction Direction
 
+type EnemyId = Int
+type WeaponId = Int
+
+data GameAction =
+  Move Direction
+  | Attack BoardCoord EnemyId
+  | SelectWeapon WeaponId
+  | InstallOrgan Organ BoardCoord
+  | RemoveOrgan Int
+
+data FailedAction = FailedAction Direction
 
 newtype Health = Health 
   { hpCount :: Int
