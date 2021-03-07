@@ -1,7 +1,7 @@
 module GameState where
 
 import Extra.Prelude
-import Framework.Direction (Direction, move)
+import Framework.Direction (Direction, move, directions8)
 import Data.Set as Set
 import Data.Map as Map
 import Data.Array as Array
@@ -168,7 +168,13 @@ data OrganSize = OrganSize Int Int
 data OrganType = Hp
 data Organ = Organ OrganSize OrganType
 
-newtype Enemy = Enemy { location :: Vector Int, health :: Health, tag :: EnemyTag }
+newtype Enemy = Enemy
+  { location :: Vector Int
+  , health :: Health
+  , clueCache :: Map BoardCoord Clue
+  , tag :: EnemyTag
+  }
+
 data EnemyTag = Roomba
 
 newtype BoardCoord = BoardCoord (Vector Int)
@@ -177,3 +183,42 @@ newtype Board = Board
   -- , organIndex :: Map BoardCoord Organ
   , injuries :: Set BoardCoord
   }
+
+isValidBoardCoord :: BoardCoord -> Boolean
+isValidBoardCoord (BoardCoord (V{x,y})) = x >= 0
+  && x <= 6
+  && y >= 0
+  && y <= 6
+
+getOrganAtPosition :: Board -> BoardCoord -> Maybe Organ
+getOrganAtPosition (Board {organs}) p =
+  Tuple.fst <$> Array.find (isInside p) organs
+
+isInside :: BoardCoord -> Tuple Organ BoardCoord -> Boolean
+isInside (BoardCoord (V{x: px,y: py}))
+         (Tuple (Organ (OrganSize w h) _) (BoardCoord (V{x,y}))) =
+  x <= px
+  && px < x + w
+  && y <= py
+  && py < y + h
+
+isHpOrgan :: Organ -> Boolean
+isHpOrgan (Organ _ Hp) = true
+
+getClue :: BoardCoord -> Board -> Clue
+getClue (BoardCoord p) b =
+  let neighbors = Array.filter isValidBoardCoord
+        (map BoardCoord $ move <$> directions8 <*> pure p)
+      hpOrgans = Array.length $ Array.filter isHpOrgan
+        (Array.mapMaybe (getOrganAtPosition b) neighbors)
+   in if hpOrgans > 0
+      then HpClue hpOrgans
+      else EmptyClue
+
+data Clue =
+  HpClue Int -- Health only
+  | ArmorClue Int -- Armor only
+  | MixedClue Int -- HealthAndArmor
+  | ConcealedClue
+  | EmptyClue
+

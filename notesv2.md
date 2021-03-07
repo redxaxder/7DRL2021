@@ -192,6 +192,7 @@ shotgun         | 3          | clever AoE | 1x1
 plasma cutter   | 1          | 1 cell     | 6x1
 laser sword     | 1          | 1 cell     | 1x6
 chainsaw        | 1          | 1 cell     | 6x6
+machine gun     | 3          | 1 cell     | 1x1 (cascades to adjacent when revealing 0)
 
 x x
  x
