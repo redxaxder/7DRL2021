@@ -3,14 +3,22 @@ module GameState where
 import Extra.Prelude
 import Framework.Direction (Direction, move)
 import Data.Set as Set
+import Data.Map as Map
 import Data.Array as Array
+import Data.LinearIndex (LinearIndex)
+import Data.LinearIndex as LinearIndex
+import Data.Tuple as Tuple
 
 newState :: Effect GameState
 newState = pure $
   GameState
    { p: V {x: 1, y:1}
-   -- , playerHealth: freshPlayerHealth
+   , playerHealth: freshPlayerHealth
+   , enemies: Map.empty
+   , terrain: LinearIndex.fill 25 25 Floor -- TODO: adjust dimensions
    }
+
+data Terrain = Wall | Floor | Exit
 
 freshPlayerHealth :: Health
 freshPlayerHealth = Health
@@ -22,11 +30,22 @@ hpCount :: Board -> Int
 hpCount board = Array.length $ Array.filter isHp (intactOrgans board)
   where
   isHp (Organ _ Hp) = true
-  isHp _ = false
+  -- isHp _ = false
 
 intactOrgans :: Board -> Array Organ
-intactOrgans = todo
-
+intactOrgans (Board board) =
+  Tuple.fst <$> Array.filter noInjuries board.organs
+  where
+  noInjuries (Tuple (Organ (OrganSize w h) _) (BoardCoord (V {x, y}))) =
+    let xmin = x
+        xmax = w + x - 1
+        ymin = y
+        ymax = y + h - 1
+    in any (\(BoardCoord (V i)) -> 
+       i.x >= xmin
+       && i.x <= xmax
+       && i.y >= ymin
+       && i.y <= ymax) board.injuries
 
 freshPlayerBoard :: Board
 freshPlayerBoard = Board 
@@ -46,13 +65,14 @@ step (GameState gs) a@(Move dir) =
 step _ _ = todo
 
 inBounds :: Vector Int -> Boolean
-inBounds (V{x,y}) = 
+inBounds (V{x,y}) =  -- TODO: fix this
   0 <= x && x <= 6 && 0 <= y && y <= 6
 
 newtype GameState = GameState
   { p :: Vector Int
-  -- , playerHealth :: Health
-  --, enemies :: Map EnemyId Enemy
+  , playerHealth :: Health
+  , enemies :: Map EnemyId Enemy
+  , terrain :: LinearIndex Terrain
   }
 
 type EnemyId = Int
@@ -77,7 +97,7 @@ data OrganType = Hp
 data Organ = Organ OrganSize OrganType
 
 type Enemy = { location :: Vector Int, health :: Health, tag :: EnemyTag }
-data EnemyTag = EnemyTag
+data EnemyTag = Roomba
 
 newtype BoardCoord = BoardCoord (Vector Int)
 newtype Board = Board
