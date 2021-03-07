@@ -26,6 +26,7 @@ output/.s: src
 images: dist/.images
 
 dist/.images: data
+	mkdir -p dist
 	cp -f data/* dist/
 	@touch dist/.images
 
@@ -33,7 +34,6 @@ dist/.images: data
 dist: dist/.s
 
 dist/.s: output/.s dist/.images
-	mkdir dist
 	npx parcel build src/index/index.html --public-url './'
 	@touch dist/.s
 
