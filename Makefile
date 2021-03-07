@@ -33,6 +33,7 @@ dist/.images: data
 dist: dist/.s
 
 dist/.s: output/.s dist/.images
+	mkdir dist
 	npx parcel build src/index/index.html --public-url './'
 	@touch dist/.s
 
