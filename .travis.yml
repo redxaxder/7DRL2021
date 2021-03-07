@@ -1,0 +1,18 @@
+language: c
+dist: trusty
+sudo: required
+
+cache:
+  npm: true
+  directories:
+  - .spago
+  - output
+  - node_modules
+
+before_install:
+  - npm -v
+  - export PATH="node_modules/.bin:$PATH"
+  - npm install
+
+script:
+  - make clean dist
