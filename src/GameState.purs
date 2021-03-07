@@ -119,21 +119,25 @@ playerHpOrgan :: Organ
 playerHpOrgan = Organ (OrganSize 2 2) Hp
 
 isWall :: Vector Int -> LinearIndex Terrain -> Boolean
-isWall (V v) t = (==) Wall $ fromMaybe Floor (LI.index t p)
-  where
-    p = Position { x: v.x, y: v.y }
+isWall v t = (==) Wall $ fromMaybe Floor (LI.index t (fromVector v))
+
+fromVector :: Vector Int -> Position
+fromVector (V v) = Position { x: v.x, y: v.y }
+
+enemyOnSpace :: Vector Int -> Enemy -> Boolean
+enemyOnSpace v (Enemy e) = e.location == v
 
 step :: GameState -> GameAction -> Either FailedAction GameState
 step (GameState gs) a@(Move dir) =
   let p' = move dir gs.p
-   in if (inWorldBounds p' && not (isWall p' gs.terrain))
+   in if (inWorldBounds p' gs.terrain && not (isWall p' gs.terrain) && not (any (enemyOnSpace p') gs.enemies))
       then Right (GameState gs {p = p'})
       else Left (FailedAction dir)
 step (GameState gs) _ = Right $ GameState gs
 
-inWorldBounds :: Vector Int -> Boolean
-inWorldBounds (V{x,y}) =  -- TODO: fix this
-  0 <= x && x <= 39 && 0 <= y && y <= 39
+inWorldBounds :: Vector Int -> LinearIndex Terrain -> Boolean
+inWorldBounds (V{x,y}) (LinearIndex t) =  -- TODO: fix this
+  0 <= x && x <= t.width - 1 && 0 <= y && y <= t.height - 1
 
 newtype GameState = GameState
   { p :: Vector Int
@@ -164,7 +168,7 @@ data OrganSize = OrganSize Int Int
 data OrganType = Hp
 data Organ = Organ OrganSize OrganType
 
-type Enemy = { location :: Vector Int, health :: Health, tag :: EnemyTag }
+newtype Enemy = Enemy { location :: Vector Int, health :: Health, tag :: EnemyTag }
 data EnemyTag = Roomba
 
 newtype BoardCoord = BoardCoord (Vector Int)
