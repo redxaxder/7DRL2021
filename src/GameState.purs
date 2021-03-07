@@ -164,6 +164,8 @@ newtype Health = Health
   , board :: Board
   }
 
+derive instance newtypeHealth :: Newtype Health _
+
 data OrganSize = OrganSize Int Int
 data OrganType = Hp
 data Organ = Organ OrganSize OrganType
@@ -178,6 +180,10 @@ newtype Enemy = Enemy
 data EnemyTag = Roomba
 
 newtype BoardCoord = BoardCoord (Vector Int)
+
+derive instance eqBoardCoord :: Eq BoardCoord
+derive instance ordBoardCoord :: Ord BoardCoord
+
 newtype Board = Board
   { organs :: Array (Tuple Organ BoardCoord)
   -- , organIndex :: Map BoardCoord Organ

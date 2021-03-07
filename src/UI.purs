@@ -139,4 +139,16 @@ data Element = Element
   }
 
 imagePaths :: Array String
-imagePaths = [ "player.png" ]
+imagePaths =
+  [ "player.png"
+  , "ButtonPushed.png"
+  , "ButtonUnpushed.png"
+  , "ground.png"
+  , "heal.png"
+  , "heart.png"
+  , "player.png"
+  , "roomba.png"
+  , "wall.png"
+  , "heart4.png"
+  , "placeholder.png"
+  ]

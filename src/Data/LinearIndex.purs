@@ -11,6 +11,19 @@ import Effect (Effect)
 import Effect.Class.Console (log)
 import Data.Foldable (traverse_)
 
+import Data.FoldableWithIndex
+  ( class FoldableWithIndex
+  , foldrWithIndex
+  , foldlWithIndex
+  , foldMapWithIndex
+  )
+import Data.Foldable
+  ( class Foldable
+  , foldr
+  , foldl
+  , foldMap
+  )
+
 newtype LinearIndex t = LinearIndex
   { width :: Int
   , height :: Int
@@ -55,4 +68,22 @@ insertAt (Position {x,y}) t (LinearIndex {width, height, values}) = do
   values' <- Array.updateAt (x + y*width) t values
   pure $ LinearIndex { width, height, values: values' }
 
+toPos :: forall a. LinearIndex a -> Int -> Position
+toPos (LinearIndex {width}) ix = Position
+  { x: ix `mod` width
+  , y: ix `div` width
+  }
+
+instance foldLI :: Foldable LinearIndex where
+  foldr f z (LinearIndex {values}) = foldr f z values
+  foldl f z (LinearIndex {values}) = foldl f z values
+  foldMap f (LinearIndex {values}) = foldMap f values
+
+instance foldWithPosition :: FoldableWithIndex Position LinearIndex where
+  foldrWithIndex f z l@(LinearIndex {values}) =
+    foldrWithIndex (\i a b -> f (toPos l i) a b) z values
+  foldlWithIndex f z l@(LinearIndex {values}) =
+    foldlWithIndex (\i b a -> f (toPos l i) b a) z values
+  foldMapWithIndex f l@(LinearIndex {values}) =
+    foldMapWithIndex (\i m -> f (toPos l i) m) values
 

@@ -65,7 +65,7 @@ fetchImage path {index, array}= do
        Just i -> pure unit
        Nothing -> do
          imgsrc <- makeAff \h -> do
-            Canvas.tryLoadImage path (h <<< maybe (Left $ error "failed to load image") pure)
+            Canvas.tryLoadImage path (h <<< maybe (Left $ error $ "failed to load image " <> path) pure)
             mempty
          void $ liftEffect $ do
             nextIndex <- Array.length <$> Ref.read array
