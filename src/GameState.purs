@@ -8,14 +8,17 @@ import Data.Array as Array
 import Data.LinearIndex (LinearIndex)
 import Data.LinearIndex as LinearIndex
 import Data.Tuple as Tuple
+import Random.Gen as R
 
 newState :: Effect GameState
-newState = pure $
-  GameState
+newState = do
+  random <- R.newGen
+  pure $ GameState
    { p: V {x: 1, y:1}
    , playerHealth: freshPlayerHealth
    , enemies: Map.empty
-   , terrain: LinearIndex.fill 25 25 Floor -- TODO: adjust dimensions
+   , terrain: LinearIndex.fill 40 40 Floor -- TODO: adjust dimensions
+   , rng: random
    }
 
 data Terrain = Wall | Floor | Exit
@@ -41,14 +44,14 @@ intactOrgans (Board board) =
         xmax = w + x - 1
         ymin = y
         ymax = y + h - 1
-    in any (\(BoardCoord (V i)) -> 
+    in any (\(BoardCoord (V i)) ->
        i.x >= xmin
        && i.x <= xmax
        && i.y >= ymin
        && i.y <= ymax) board.injuries
 
 freshPlayerBoard :: Board
-freshPlayerBoard = Board 
+freshPlayerBoard = Board
   { organs: [ Tuple playerHpOrgan (BoardCoord (vec 2 2)) ]
   , injuries: Set.empty
   }
@@ -73,6 +76,7 @@ newtype GameState = GameState
   , playerHealth :: Health
   , enemies :: Map EnemyId Enemy
   , terrain :: LinearIndex Terrain
+  , rng :: R.Gen
   }
 
 type EnemyId = Int
