@@ -9,6 +9,7 @@ import Data.LinearIndex (LinearIndex (..))
 import Data.LinearIndex as LI
 import Data.String as String
 import Data.String.CodeUnits (toCharArray)
+import Data.Position (Position (..))
 import Data.Tuple as Tuple
 import Random.Gen as R
 
@@ -19,11 +20,12 @@ newState = do
    { p: V {x: 1, y:1}
    , playerHealth: freshPlayerHealth
    , enemies: Map.empty
-   , terrain: fromMaybe (LI.fill 40 40 Floor) (freshTerrainFromString demoTerrain)-- TODO: adjust dimensions
+   , terrain: fromMaybe (LI.fill 40 40 Floor) (freshTerrainFromString demoTerrain)
    , rng: random
    }
 
 data Terrain = Wall | Floor | Exit
+derive instance terrainEq :: Eq Terrain
 
 charToTerrain :: Char -> Terrain
 charToTerrain '.' = Floor
@@ -116,17 +118,22 @@ freshPlayerBoard = Board
 playerHpOrgan :: Organ
 playerHpOrgan = Organ (OrganSize 2 2) Hp
 
+isWall :: Vector Int -> LinearIndex Terrain -> Boolean
+isWall (V v) t = (==) Wall $ fromMaybe Floor (LI.index t p)
+  where
+    p = Position { x: v.x, y: v.y }
+
 step :: GameState -> GameAction -> Either FailedAction GameState
 step (GameState gs) a@(Move dir) =
   let p' = move dir gs.p
-   in if inBounds p'
+   in if (inWorldBounds p' && not (isWall p' gs.terrain))
       then Right (GameState gs {p = p'})
       else Left (FailedAction dir)
 step (GameState gs) _ = Right $ GameState gs
 
-inBounds :: Vector Int -> Boolean
-inBounds (V{x,y}) =  -- TODO: fix this
-  0 <= x && x <= 6 && 0 <= y && y <= 6
+inWorldBounds :: Vector Int -> Boolean
+inWorldBounds (V{x,y}) =  -- TODO: fix this
+  0 <= x && x <= 39 && 0 <= y && y <= 39
 
 newtype GameState = GameState
   { p :: Vector Int
@@ -148,7 +155,7 @@ data GameAction =
 
 data FailedAction = FailedAction Direction
 
-newtype Health = Health 
+newtype Health = Health
   { hpCount :: Int
   , board :: Board
   }
