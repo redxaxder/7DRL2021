@@ -19,14 +19,19 @@ import GameState
   , Terrain (..)
   , Enemy (..)
   , EnemyTag (..)
+  , enemyName
   )
 import UI
   ( UIState (..)
+  , centerPaneTiles
+  , leftPaneBorder
+  , leftPaneTiles
+  , rightPaneBorder
+  , rightPaneTiles
   , tileSize
   ) -- , Element (..))
 --import Animation as A
 import Framework.Render.Core (Rectangle, Image (..))
-import Data.Char (toCharCode)
 import Data.Position (Position (..))
 import Data.Variant as V
 
@@ -39,7 +44,7 @@ draw t uis@(UIState {dirty}) gs vars = do
   clear vars dirty
   drawLeftPane t uis gs vars
   drawCenterPane t uis gs vars
-  --drawRightPane t uis gs vars
+  drawRightPane t uis gs vars
   --drawPaneBorders t uis gs vars
 
 drawLeftPane :: Instant -> UIState -> GameState -> FCanvas.Vars -> Effect Unit
@@ -51,33 +56,40 @@ drawLeftPane t (UIState{dirty}) (GameState {playerHealth}) vars = do
   drawBoardBase vars dirty playerBoard { x: 0.0, y: 11.0 }
   -- TODO draw player organs
 
+centerPaneStart :: Number
+centerPaneStart = leftPaneTiles * tileSize + leftPaneBorder
+
 drawCenterPane :: Instant -> UIState -> GameState -> FCanvas.Vars -> Effect Unit
 drawCenterPane t (UIState uis) (GameState gs) vars = do
-  let x0 = 6.0 * tileSize + 1.0
-      y0 = 0.0
   forWithIndex_ gs.terrain \pos terrain ->
      let Position p = pos
-         x = x0 + toNumber p.x * tileSize
-         y = y0 + toNumber p.y * tileSize
+         x = centerPaneStart + toNumber p.x * tileSize
+         y = toNumber p.y * tileSize
          image = case terrain of
                   Wall -> "wall.png"
                   Floor -> "ground.png"
                   Exit -> "placeholder.png"
      in drawImage vars uis.dirty image { x, y, width: tileSize, height: tileSize }
   let (V playerPos) = gs.p
-      px = x0 + toNumber playerPos.x * tileSize
-      py = y0 + toNumber playerPos.y * tileSize
+      px = centerPaneStart + toNumber playerPos.x * tileSize
+      py = toNumber playerPos.y * tileSize
   drawImage vars uis.dirty "player.png" { x: px, y: py, width: tileSize, height: tileSize }
   for_ gs.enemies \(Enemy e) ->
     let V p = e.location
-        x = x0 + toNumber p.x * tileSize
-        y = y0 + toNumber p.y * tileSize
+        x = centerPaneStart + toNumber p.x * tileSize
+        y = toNumber p.y * tileSize
         image = case e.tag of
                       Roomba -> "roomba.png"
     in drawImage vars uis.dirty image {x,y, width: tileSize, height: tileSize }
 
+rightPaneStart :: Number
+rightPaneStart = centerPaneStart + centerPaneTiles * tileSize + rightPaneBorder
+
+rightPaneSize :: Number
+rightPaneSize = rightPaneTiles * tileSize
+
 drawRightPane :: Instant -> UIState -> GameState -> FCanvas.Vars -> Effect Unit
-drawRightPane t (UIState{rightPaneTarget}) (GameState gs) vars =
+drawRightPane t (UIState{rightPaneTarget, dirty}) (GameState gs) vars =
   V.match
   { none: \_ -> pure unit
   , floor: \_ -> pure unit
@@ -85,7 +97,14 @@ drawRightPane t (UIState{rightPaneTarget}) (GameState gs) vars =
   , enemy: \eid ->
      case Map.lookup eid gs.enemies of
           Nothing -> pure unit
-          Just e -> pure unit
+          Just (Enemy e) -> do
+            let name = enemyName e.tag
+                Health h = e.health
+            wrapText vars name {x: rightPaneStart, y: 0.0} rightPaneSize
+            drawImage vars dirty "heart.png"
+              { x: rightPaneStart, y: 30.0, width: tileSize, height: tileSize }
+            drawText vars (show h.hpCount) { x: rightPaneStart + 10.0, y: 30.0 }
+            drawBoardBase vars dirty h.board { x: rightPaneStart, y: 50.0 }
   } rightPaneTarget
 
 clear :: FCanvas.Vars -> Array Rectangle -> Effect Unit
@@ -94,23 +113,10 @@ clear { canvas } rects = do
   width <- Canvas.getCanvasWidth canvas
   height <- Canvas.getCanvasHeight canvas
   Canvas.setFillStyle ctx "black"
-  for_ rects $ Canvas.fillRect ctx 
+  for_ rects $ Canvas.fillRect ctx
 
 gridToScreen :: Vector Number -> Vector Number
 gridToScreen p = (\x -> x * tileSize) <$> p
-
-textWidth :: Number
-textWidth = 10.0
-
-textHeight :: Number
-textHeight = 10.0
-
-charPosition :: Char -> {x :: Number, y :: Number }
-charPosition c =
-  let i = toCharCode c
-   in { x: toNumber (i `mod` 16) * textHeight
-      , y: toNumber (i `div` 16) * textWidth
-      }
 
 drawBoardBase :: FCanvas.Vars -> Array Rectangle -> Board -> {x :: Number, y :: Number} -> Effect Unit
 drawBoardBase vars dirty (Board {injuries}) {x,y} =
@@ -140,6 +146,16 @@ drawColorText vars string (Color c)loc = do
   setTextBaselineHanging ctx
   Canvas.setFillStyle ctx c
   Canvas.fillText ctx string loc.x (loc.y + 2.0)
+
+wrapText
+  :: FCanvas.Vars
+  -> String
+  -> { x :: Number, y:: Number }
+  -> Number
+  -> Effect Unit
+wrapText vars string loc _maxWidth =
+  --let splits = String.split (Pattern " ") string
+  drawText vars string loc
 
 dirtyCheck :: Array Rectangle -> Rectangle -> Boolean
 dirtyCheck dirty target = any (intersectRect target) dirty

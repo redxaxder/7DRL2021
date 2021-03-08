@@ -21,6 +21,9 @@ import PointerEvent as Ptr
 
 import Framework.Render.Core (Rectangle)
 
+import Data.DateTime.Instant (instant)
+import Data.Time.Duration (Milliseconds (..))
+
 type UI r =
   F.UIM GameState GameAction FailedAction UIState Input r
 
@@ -29,6 +32,7 @@ newtype UIState = UIState
   , pointerState :: PointerState
   , rightPaneTarget :: V.Variant RightPane
   , dirty :: Array Rectangle
+  , timestamp :: Instant
   }
 
 type RightPane =
@@ -54,6 +58,7 @@ initUIState (GameState {p}) = UIState
   , pointerState: Neutral
   , rightPaneTarget: V.inj (SProxy :: SProxy "none") unit
   , dirty: [{x:0.0,y:0.0,width:totalWidth, height:totalHeight} ]
+  , timestamp: unsafeFromJust $ instant $ Milliseconds 0.0
   }
 
 mainScreen :: GameState -> UI Unit
@@ -162,13 +167,20 @@ targetDimensions :: { width :: Number, height :: Number }
 targetDimensions = { width: totalWidth, height: totalHeight}
 
 totalWidth :: Number
-totalWidth = tileSize * (leftPaneTiles + centerPaneTiles + rightPaneTiles) + 2.0
+totalWidth = tileSize * (leftPaneTiles + centerPaneTiles + rightPaneTiles) + 
+  leftPaneBorder + rightPaneBorder
 
 totalHeight :: Number
 totalHeight = tileSize * verticalTiles
 
 leftPaneTiles :: Number
 leftPaneTiles = 6.0
+
+leftPaneBorder :: Number
+leftPaneBorder = 1.0
+
+rightPaneBorder :: Number
+rightPaneBorder = 1.0
 
 centerPaneTiles :: Number
 centerPaneTiles = 40.0

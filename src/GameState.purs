@@ -134,6 +134,10 @@ newtype Enemy = Enemy
 
 data EnemyTag = Roomba
 
+
+enemyName :: EnemyTag -> String
+enemyName Roomba = "murderous vacuum robot"
+
 newtype BoardCoord = BoardCoord (Vector Int)
 
 derive instance eqBoardCoord :: Eq BoardCoord
