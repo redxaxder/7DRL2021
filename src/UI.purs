@@ -125,6 +125,10 @@ updateUIState t
    in UIState uis{
       element = Element $ e { pos = map (A.prune t) e.pos + dpAnimation }
       }
+updateUIState t
+  (GameState {p})
+  (Left _)
+  uis = uis
 
 getDir :: String -> Maybe Direction
 getDir "ArrowLeft" = Just left
