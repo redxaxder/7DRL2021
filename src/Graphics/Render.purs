@@ -21,11 +21,12 @@ import GameState
   , Enemy (..)
   , EnemyTag (..)
   )
-import UI (UIState) --  (..), Element (..))
+import UI (UIState (..)) -- , Element (..))
 --import Animation as A
 import Framework.Render.Core (Rectangle, Image (..))
 import Data.Char (toCharCode)
 import Data.Position (Position (..))
+import Data.Variant as V
 
 
 targetDimensions :: { width :: Number, height :: Number }
@@ -95,7 +96,17 @@ drawCenterPane t uis (GameState gs) vars = do
                       Roomba -> "roomba.png"
     in drawImage vars image {x,y, width: tileSize, height: tileSize }
 
-
+drawRightPane :: Instant -> UIState -> GameState -> FCanvas.Vars -> Effect Unit
+drawRightPane t (UIState{rightPaneTarget}) (GameState gs) vars =
+  V.match
+  { none: \_ -> pure unit
+  , floor: \_ -> pure unit
+  , wall: \_ -> pure unit
+  , enemy: \eid ->
+     case Map.lookup eid gs.enemies of
+          Nothing -> pure unit
+          Just e -> pure unit
+  } rightPaneTarget
 
 clear :: FCanvas.Vars -> Effect Unit
 clear { canvas } = do

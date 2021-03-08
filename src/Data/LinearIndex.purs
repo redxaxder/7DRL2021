@@ -9,8 +9,6 @@ import Data.Position (Position (..))
 import Effect (Effect)
 
 import Effect.Class.Console (log)
-import Data.Foldable (traverse_)
-
 import Data.FoldableWithIndex
   ( class FoldableWithIndex
   , foldrWithIndex
@@ -22,6 +20,7 @@ import Data.Foldable
   , foldr
   , foldl
   , foldMap
+  , traverse_
   )
 
 newtype LinearIndex t = LinearIndex

@@ -7,7 +7,12 @@ import Framework.UI as F
 
 import Animation (Animating, DiffTime(..))
 import Animation as A
-import GameState (GameState (..), GameAction (..), FailedAction (..))
+import GameState
+  ( GameState (..)
+  , GameAction (..)
+  , FailedAction (..)
+  , EnemyId
+  )
 import Input (Input)
 import Data.Variant as V
 
@@ -20,7 +25,15 @@ type UI r =
 newtype UIState = UIState
   { element :: Element
   , pointerState :: PointerState
+  , rightPaneTarget :: V.Variant RightPane
   }
+
+type RightPane =
+  ( enemy :: EnemyId
+  , floor :: Unit
+  , wall :: Unit
+  , none :: Unit
+  )
 
 data PointerState = Neutral
   | Dragging
@@ -36,6 +49,7 @@ initUIState (GameState {p}) = UIState
     , pos: pure <<< toNumber <$> p
     }
   , pointerState: Neutral
+  , rightPaneTarget: V.inj (SProxy :: SProxy "none") unit
   }
 
 mainScreen :: GameState -> UI Unit
