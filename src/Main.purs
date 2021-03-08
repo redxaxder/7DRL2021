@@ -17,7 +17,7 @@ import Framework.Render.Canvas as Canvas
 
 import Input (Input, getInputs)
 
-import Graphics.Render (draw)
+import Graphics.Render (draw, RendererState, newRendererState)
 
 import GameState (GameState, GameAction, FailedAction, newState, step)
 import UI (imagePaths, UIState, mainScreen, targetDimensions)
@@ -30,11 +30,12 @@ main = unsafePartial $ launchAff_ $ do
   liftEffect $ C.log "..."
   let { width, height } = targetDimensions
   liftEffect $ C.log "..."
-  ctx <- fromJust <$> Canvas.init { width, height, canvasId: "canvas", imagePaths }
+  cv <- fromJust <$> Canvas.init { width, height, canvasId: "canvas", imagePaths }
+  ctx <- liftEffect $ newRendererState cv
   liftEffect $ C.log "..."
-  let engineConfig :: EngineConfig GameState GameAction FailedAction UIState Input Canvas.Vars
+  let engineConfig :: EngineConfig GameState GameAction FailedAction UIState Input RendererState
       engineConfig =
-          { inputs: getInputs ctx.canvas
+          { inputs: getInputs cv.canvas
           , ui: mainScreen init
           , init
           , step

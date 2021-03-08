@@ -31,8 +31,8 @@ newtype UIState = UIState
   { element :: Element
   , pointerState :: PointerState
   , rightPaneTarget :: V.Variant RightPane
-  , dirty :: Array Rectangle
   , timestamp :: Instant
+  , gsTimestamp :: Instant
   }
 
 type RightPane =
@@ -57,8 +57,8 @@ initUIState (GameState {p}) = UIState
     }
   , pointerState: Neutral
   , rightPaneTarget: V.inj (SProxy :: SProxy "none") unit
-  , dirty: [{x:0.0,y:0.0,width:totalWidth, height:totalHeight} ]
   , timestamp: unsafeFromJust $ instant $ Milliseconds 0.0
+  , gsTimestamp: unsafeFromJust $ instant $ Milliseconds 0.0
   }
 
 mainScreen :: GameState -> UI Unit
@@ -136,8 +136,9 @@ updateUIState t
   (Left (FailedAction direction))
   (UIState uis@{element: (Element e)}) =
   let bump = A.bump t (DiffTime 200.0) (move direction zero)
-   in UIState $ uis{
-      element = Element $ e { pos = map (A.prune t) e.pos + bump }
+   in UIState $ uis
+      { element = Element $ e { pos = map (A.prune t) e.pos + bump }
+      , timestamp = t
       }
 updateUIState t
   (GameState {p})
@@ -145,8 +146,10 @@ updateUIState t
   (UIState uis@{element: (Element e)}) =
   let dp = toNumber <$> p' - p
       dpAnimation = A.slide t (DiffTime 300.0) dp
-   in UIState uis{
-      element = Element $ e { pos = map (A.prune t) e.pos + dpAnimation }
+   in UIState uis
+      { element = Element $ e { pos = map (A.prune t) e.pos + dpAnimation }
+      , timestamp = t
+      , gsTimestamp = t
       }
 updateUIState t
   (GameState {p})
@@ -165,14 +168,38 @@ data Element = Element
   , pos :: Vector (Animating Number)
   }
 
+--------------------------------------------------------------------------------
+-- UI dimensions ---------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+leftPaneRect :: Rectangle
+leftPaneRect = { x:0.0,y:0.0
+  , width: leftPaneTiles * tileSize + leftPaneBorder
+  , height: totalHeight
+  }
+
+centerPaneRect :: Rectangle
+centerPaneRect =
+  { x: leftPaneRect.width
+  , y: 0.0
+  , width: centerPaneTiles * tileSize + rightPaneBorder
+  , height: totalHeight
+  }
+
+rightPaneRect :: Rectangle
+rightPaneRect =
+  { x: centerPaneRect.x + centerPaneRect.width
+  , y: 0.0
+  , width: rightPaneTiles * tileSize
+  , height: totalHeight
+  }
 
 targetDimensions :: { width :: Number, height :: Number }
 
 targetDimensions = { width: totalWidth, height: totalHeight}
 
 totalWidth :: Number
-totalWidth = tileSize * (leftPaneTiles + centerPaneTiles + rightPaneTiles) + 
-  leftPaneBorder + rightPaneBorder
+totalWidth = leftPaneRect.width + centerPaneRect.width + rightPaneRect.width
 
 totalHeight :: Number
 totalHeight = tileSize * verticalTiles
@@ -198,6 +225,9 @@ verticalTiles = 40.0
 tileSize :: Number
 tileSize = 10.0
 
+--------------------------------------------------------------------------------
+-- Image paths -----------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 imagePaths :: Array String
 imagePaths =

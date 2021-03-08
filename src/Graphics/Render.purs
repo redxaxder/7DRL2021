@@ -6,6 +6,7 @@ import Data.Array as Array
 import Data.Map as Map
 import Effect.Exception (error)
 import Effect.Ref as Ref
+import Effect.Ref (Ref)
 import Graphics.Canvas as Canvas
 import Data.Set as Set
 import Data.Board
@@ -27,12 +28,10 @@ import GameState
   )
 import UI
   ( UIState (..)
-  , centerPaneTiles
-  , leftPaneBorder
-  , leftPaneTiles
-  , rightPaneBorder
-  , rightPaneTiles
   , tileSize
+  , centerPaneRect
+  , leftPaneRect
+  , rightPaneRect
   ) -- , Element (..))
 --import Animation as A
 import Framework.Render.Core (Rectangle, Image (..))
@@ -40,119 +39,149 @@ import Data.Position (Position (..))
 import Data.Variant as V
 
 
---todo: remember time of previous draw call and use this for extra dirty flags
---      on animated stuff
+import Data.DateTime.Instant (instant)
+import Data.Time.Duration (Milliseconds (..))
+import Effect.Console as C
 
-draw :: Instant -> UIState -> GameState -> FCanvas.Vars -> Effect Unit
-draw t uis@(UIState {dirty}) gs vars = do
-  clear vars dirty
-  drawLeftPane t uis gs vars
-  drawCenterPane t uis gs vars
-  drawRightPane t uis gs vars
-  --drawPaneBorders t uis gs vars
+{-
 
-drawLeftPane :: Instant -> UIState -> GameState -> FCanvas.Vars -> Effect Unit
-drawLeftPane t (UIState{dirty}) (GameState {playerHealth}) vars = do
+
+
+idea:
+  each gamestate is timestamped
+  draw function remembers the most recent timestamp it drew
+  the static parts of a scene are drawn to a secondary buffer
+  in an animated scene, the animation is cleaned up by copying from the secondary buffer
+  parts of the draw are skipped
+
+
+
+-}
+
+newtype RendererState = RendererState
+  { cvars :: FCanvas.Vars
+  , gameStateId :: Ref (Maybe Instant)
+  , uiStateId :: Ref (Maybe Instant)
+  , prevDraw :: Ref (Maybe Instant)
+  }
+
+newRendererState :: FCanvas.Vars -> Effect RendererState
+newRendererState cvars = do
+  gameStateId <- Ref.new Nothing
+  uiStateId <- Ref.new Nothing
+  prevDraw <- Ref.new Nothing
+  pure $ RendererState { cvars, gameStateId, uiStateId, prevDraw }
+
+draw :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
+draw t uis@(UIState {timestamp, gsTimestamp}) gs rs@(RendererState r) = do
+  prevGS <- Ref.read r.gameStateId
+  prevUI <- Ref.read r.uiStateId
+  let uiDirty = maybe true ((>) timestamp) prevUI
+      gsDirty = maybe true ((>) gsTimestamp) prevGS
+  when uiDirty $ do
+    C.log "draw ui"
+    drawLeftPane t uis gs rs
+    drawRightPane t uis gs rs
+    Ref.write (Just timestamp) r.uiStateId
+  when gsDirty $ do
+    C.log "draw gs"
+    drawCenterPane t uis gs rs
+    Ref.write (Just gsTimestamp) r.gameStateId
+
+drawLeftPane :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
+drawLeftPane t uis (GameState {playerHealth}) vars = do
   let playerHp = (un Health playerHealth).hpCount
       playerBoard = (un Health playerHealth).board
+  clear vars leftPaneRect
   drawText vars (show playerHp) { x:10.0, y:0.0 }
-  drawImage vars dirty "heart.png" { x:0.0, y: 0.0, width: tileSize, height: tileSize }
-  drawBoardBase vars dirty playerBoard { x: 0.0, y: 11.0 }
+  drawImage vars "heart.png" { x:0.0, y: 0.0, width: tileSize, height: tileSize }
+  drawBoardBase vars playerBoard { x: 0.0, y: 11.0 }
   -- TODO draw player organs
 
-centerPaneStart :: Number
-centerPaneStart = leftPaneTiles * tileSize + leftPaneBorder
-
-drawCenterPane :: Instant -> UIState -> GameState -> FCanvas.Vars -> Effect Unit
+drawCenterPane :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
 drawCenterPane t (UIState uis) (GameState gs) vars = do
+  clear vars centerPaneRect
   forWithIndex_ gs.terrain \pos terrain ->
      let Position p = pos
-         x = centerPaneStart + toNumber p.x * tileSize
+         x = centerPaneRect.x + toNumber p.x * tileSize
          y = toNumber p.y * tileSize
          image = case terrain of
                   Wall -> "wall.png"
                   Floor -> "ground.png"
                   Exit -> "placeholder.png"
-     in drawImage vars uis.dirty image { x, y, width: tileSize, height: tileSize }
+     in drawImage vars image { x, y, width: tileSize, height: tileSize }
   let (V playerPos) = gs.p
-      px = centerPaneStart + toNumber playerPos.x * tileSize
+      px = centerPaneRect.x + toNumber playerPos.x * tileSize
       py = toNumber playerPos.y * tileSize
-  drawImage vars uis.dirty "player.png" { x: px, y: py, width: tileSize, height: tileSize }
+  drawImage vars "player.png" { x: px, y: py, width: tileSize, height: tileSize }
   for_ gs.enemies \(Enemy e) ->
     let V p = e.location
-        x = centerPaneStart + toNumber p.x * tileSize
+        x = centerPaneRect.x + toNumber p.x * tileSize
         y = toNumber p.y * tileSize
         image = case e.tag of
                       Roomba -> "roomba.png"
-    in drawImage vars uis.dirty image {x,y, width: tileSize, height: tileSize }
+    in drawImage vars image {x,y, width: tileSize, height: tileSize }
 
-rightPaneStart :: Number
-rightPaneStart = centerPaneStart + centerPaneTiles * tileSize + rightPaneBorder
-
-rightPaneSize :: Number
-rightPaneSize = rightPaneTiles * tileSize
-
-drawRightPane :: Instant -> UIState -> GameState -> FCanvas.Vars -> Effect Unit
-drawRightPane t (UIState{rightPaneTarget, dirty}) (GameState gs) vars =
+drawRightPane :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
+drawRightPane t (UIState{rightPaneTarget}) (GameState gs) vars = do
+  clear vars rightPaneRect
   V.match
-  { none: \_ -> pure unit
-  , floor: \_ -> pure unit
-  , wall: \_ -> pure unit
-  , enemy: \eid ->
-     case Map.lookup eid gs.enemies of
-          Nothing -> pure unit
-          Just (Enemy e) -> do
-            let name = enemyName e.tag
-                Health h = e.health
-            wrapText vars name {x: rightPaneStart, y: 0.0} rightPaneSize
-            drawImage vars dirty "heart.png"
-              { x: rightPaneStart, y: 30.0, width: tileSize, height: tileSize }
-            drawText vars (show h.hpCount) { x: rightPaneStart + 10.0, y: 30.0 }
-            drawBoardBase vars dirty h.board { x: rightPaneStart, y: 50.0 }
-  } rightPaneTarget
+    { none: \_ -> pure unit
+    , floor: \_ -> pure unit
+    , wall: \_ -> pure unit
+    , enemy: \eid ->
+       case Map.lookup eid gs.enemies of
+            Nothing -> pure unit
+            Just (Enemy e) -> do
+              let name = enemyName e.tag
+                  Health h = e.health
+              wrapText vars name {x: rightPaneRect.x, y: 0.0} rightPaneRect.width
+              drawImage vars "heart.png"
+                { x: rightPaneRect.x, y: 30.0, width: tileSize, height: tileSize }
+              drawText vars (show h.hpCount) { x: rightPaneRect.x + 10.0, y: 30.0 }
+              drawBoardBase vars h.board { x: rightPaneRect.x, y: 50.0 }
+    } rightPaneTarget
 
-clear :: FCanvas.Vars -> Array Rectangle -> Effect Unit
-clear { canvas } rects = do
-  ctx <- Canvas.getContext2D canvas
-  width <- Canvas.getCanvasWidth canvas
-  height <- Canvas.getCanvasHeight canvas
+clear :: RendererState -> Rectangle -> Effect Unit
+clear (RendererState { cvars: c }) rect = do
+  ctx <- Canvas.getContext2D c.canvas
   Canvas.setFillStyle ctx "black"
-  for_ rects $ Canvas.fillRect ctx
+  Canvas.fillRect ctx rect
 
 gridToScreen :: Vector Number -> Vector Number
 gridToScreen p = (\x -> x * tileSize) <$> p
 
-drawBoardBase :: FCanvas.Vars -> Array Rectangle -> Board -> {x :: Number, y :: Number} -> Effect Unit
-drawBoardBase vars dirty (Board {injuries}) {x,y} =
+drawBoardBase :: RendererState -> Board -> {x :: Number, y :: Number} -> Effect Unit
+drawBoardBase vars (Board {injuries}) {x,y} =
   for_ (Array.range 0 5) \px ->
     for_ (Array.range 0 5) \py ->
       let buttonImage = if Set.member (BoardCoord (V{x: px, y:py})) injuries
             then "ButtonPushed.png"
             else "ButtonUnpushed.png"
-       in drawImage vars dirty buttonImage
+       in drawImage vars buttonImage
           { x: x + toNumber px * tileSize
           , y: y + toNumber py * tileSize
           , width: tileSize
           , height: tileSize
           }
 
-drawText :: FCanvas.Vars -> String -> { x :: Number, y:: Number } -> Effect Unit
+drawText :: RendererState -> String -> { x :: Number, y:: Number } -> Effect Unit
 drawText vars string loc =
   drawColorText vars string (Color "white") loc
 
 newtype Color = Color String
 foreign import setTextBaselineHanging :: Canvas.Context2D -> Effect Unit
 
-drawColorText :: FCanvas.Vars -> String -> Color -> { x :: Number, y:: Number } -> Effect Unit
-drawColorText vars string (Color c)loc = do
-  ctx <- Canvas.getContext2D vars.canvas
+drawColorText :: RendererState -> String -> Color -> { x :: Number, y:: Number } -> Effect Unit
+drawColorText (RendererState {cvars}) string (Color c)loc = do
+  ctx <- Canvas.getContext2D cvars.canvas
   Canvas.setFont ctx "10px CapitalHillMono"
   setTextBaselineHanging ctx
   Canvas.setFillStyle ctx c
   Canvas.fillText ctx string loc.x (loc.y + 2.0)
 
 wrapText
-  :: FCanvas.Vars
+  :: RendererState
   -> String
   -> { x :: Number, y:: Number }
   -> Number
@@ -161,6 +190,7 @@ wrapText vars string loc _maxWidth =
   --let splits = String.split (Pattern " ") string
   drawText vars string loc
 
+{-
 dirtyCheck :: Array Rectangle -> Rectangle -> Boolean
 dirtyCheck dirty target = any (intersectRect target) dirty
   where
@@ -173,10 +203,10 @@ dirtyCheck dirty target = any (intersectRect target) dirty
       intersectInterval
         r1.y (r1.y + r1.height)
         r2.y (r2.y + r2.height)
+-}
 
-
-drawImage :: FCanvas.Vars -> Array Rectangle -> String -> Rectangle -> Effect Unit
-drawImage { canvas, imageData } dirty path {x,y, width, height} = do
+drawImage :: RendererState -> String -> Rectangle -> Effect Unit
+drawImage (RendererState {cvars: { canvas, imageData }}) path {x,y, width, height} = do
   ctx <- Canvas.getContext2D canvas
   imageMap <- Ref.read imageData.index
   images <- Ref.read imageData.array
@@ -187,8 +217,8 @@ drawImage { canvas, imageData } dirty path {x,y, width, height} = do
        Nothing -> throwError (error "Missing image!")
        Just img -> Canvas.drawImageScale ctx img x y width height
 
-drawImageFull :: FCanvas.Vars -> String -> Rectangle -> Rectangle -> Effect Unit
-drawImageFull { canvas, imageData } path s d = do
+drawImageFull :: RendererState -> String -> Rectangle -> Rectangle -> Effect Unit
+drawImageFull (RendererState {cvars: { canvas, imageData }}) path s d = do
   ctx <- Canvas.getContext2D canvas
   imageMap <- Ref.read imageData.index
   images <- Ref.read imageData.array
