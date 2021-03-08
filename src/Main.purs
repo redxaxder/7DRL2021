@@ -17,10 +17,10 @@ import Framework.Render.Canvas as Canvas
 
 import Input (Input, getInputs)
 
-import Graphics.Render (targetDimensions, draw)
+import Graphics.Render (draw)
 
 import GameState (GameState, GameAction, FailedAction, newState, step)
-import UI (imagePaths, UIState, mainScreen)
+import UI (imagePaths, UIState, mainScreen, targetDimensions)
 
 main :: Effect Unit
 main = unsafePartial $ launchAff_ $ do

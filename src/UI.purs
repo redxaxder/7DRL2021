@@ -19,6 +19,8 @@ import Data.Variant as V
 import Data.Either (either)
 import PointerEvent as Ptr
 
+import Framework.Render.Core (Rectangle)
+
 type UI r =
   F.UIM GameState GameAction FailedAction UIState Input r
 
@@ -26,6 +28,7 @@ newtype UIState = UIState
   { element :: Element
   , pointerState :: PointerState
   , rightPaneTarget :: V.Variant RightPane
+  , dirty :: Array Rectangle
   }
 
 type RightPane =
@@ -50,6 +53,7 @@ initUIState (GameState {p}) = UIState
     }
   , pointerState: Neutral
   , rightPaneTarget: V.inj (SProxy :: SProxy "none") unit
+  , dirty: [{x:0.0,y:0.0,width:totalWidth, height:totalHeight} ]
   }
 
 mainScreen :: GameState -> UI Unit
@@ -152,6 +156,33 @@ data Element = Element
   , pos :: Vector (Animating Number)
   }
 
+
+targetDimensions :: { width :: Number, height :: Number }
+
+targetDimensions = { width: totalWidth, height: totalHeight}
+
+totalWidth :: Number
+totalWidth = tileSize * (leftPaneTiles + centerPaneTiles + rightPaneTiles) + 2.0
+
+totalHeight :: Number
+totalHeight = tileSize * verticalTiles
+
+leftPaneTiles :: Number
+leftPaneTiles = 6.0
+
+centerPaneTiles :: Number
+centerPaneTiles = 40.0
+
+rightPaneTiles :: Number
+rightPaneTiles = 10.0
+
+verticalTiles :: Number
+verticalTiles = 40.0
+
+tileSize :: Number
+tileSize = 10.0
+
+
 imagePaths :: Array String
 imagePaths =
   [ "player.png"
@@ -163,6 +194,6 @@ imagePaths =
   , "player.png"
   , "roomba.png"
   , "wall.png"
-  , "heart4.png"
+  , "Heart4.png"
   , "placeholder.png"
   ]
