@@ -8,15 +8,19 @@ import Effect.Exception (error)
 import Effect.Ref as Ref
 import Graphics.Canvas as Canvas
 import Data.Set as Set
+import Data.Board
+  ( Board(..)
+  , BoardCoord (..)
+  )
+import Data.Terrain
+  ( Terrain(..)
+  )
 
 import Framework.Render.Canvas as FCanvas
 
 import GameState
   ( GameState (..)
-  , Board (..)
-  , BoardCoord (..)
   , Health (..)
-  , Terrain (..)
   , Enemy (..)
   , EnemyTag (..)
   , enemyName
