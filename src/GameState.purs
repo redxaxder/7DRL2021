@@ -102,14 +102,14 @@ enemyOnSpace v (Enemy e) = e.location == v
 step :: GameState -> GameAction -> Either FailedAction GameState
 step (GameState gs) a@(Move dir) =
   let p' = move dir gs.p
-   in if isImpassable p' (GameState gs)
+   in if isPassable p' (GameState gs)
       then Right $ enemyTurn (GameState gs {p = p'})
       else Left (FailedAction dir)
 step (GameState gs) a@(Attack bc eid) =
   let menemy = Map.lookup eid gs.enemies
    in case menemy of
     Nothing -> Left FailedAttack
-    Just enemy -> Right (GameState gs {enemies = Map.insert eid (injureEnemy bc enemy) gs.enemies})
+    Just enemy -> Right $ enemyTurn (GameState gs {enemies = Map.insert eid (injureEnemy bc enemy) gs.enemies})
 step (GameState gs) _ = Right $ GameState gs
 
 injureEnemy :: BoardCoord -> Enemy -> Enemy
@@ -126,16 +126,20 @@ injure (BoardCoord v) (Health h) =
   let board = injureBoard v h.board
    in Health { hpCount: hpCount board, board }
 
-isImpassable :: Vector Int -> GameState -> Boolean
-isImpassable p (GameState gs) = inWorldBounds p gs.terrain && not (isWall p gs.terrain) && not (any (enemyOnSpace p) gs.enemies)
+isPassable :: Vector Int -> GameState -> Boolean
+isPassable t (GameState gs) =
+  inWorldBounds t gs.terrain
+  && not (isWall t gs.terrain)
+  && not (any (enemyOnSpace t) gs.enemies)
+  && t /= gs.p
 
 enemyTurn :: GameState -> GameState
-enemyTurn (GameState gs) = GameState gs {enemies = enemyMove gs.p (GameState gs) <$> gs.enemies}
+enemyTurn (GameState gs) = GameState gs {enemies = enemyMove (GameState gs) <$> gs.enemies}
 
-enemyMove :: Vector Int -> GameState -> Enemy -> Enemy
-enemyMove p gs (Enemy e) =
-  let target = e.location + (intVecToDir $ p - e.location)
-   in if isImpassable p gs then Enemy e else Enemy e { location = e.location + (intVecToDir $ p - e.location) }
+enemyMove :: GameState -> Enemy -> Enemy
+enemyMove (GameState gs) (Enemy e) =
+  let target = e.location + (intVecToDir $ gs.p - e.location)
+   in if isPassable target (GameState gs) then Enemy e { location = e.location + (intVecToDir $ gs.p - e.location) } else Enemy e
 
 intVecToDir :: Vector Int -> Vector Int
 intVecToDir (V {x,y}) = V {x: abs' x, y: abs' y}
