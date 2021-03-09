@@ -4,7 +4,7 @@ import Extra.Prelude
 
 import Extra.Math (zn, Zn (..))
 
-import Data.Enum (class Enum, class BoundedEnum, upFrom)
+import Data.Enum (class Enum, class BoundedEnum, upFromIncluding)
 import Data.Typelevel.Num.Reps (D8)
 
 data Spin = Clockwise | Widdershins
@@ -50,7 +50,7 @@ directions4 :: Array Direction
 directions4 = [right, up, left, down]
 
 directions8 :: Array Direction
-directions8 = upFrom right
+directions8 = upFromIncluding right
 
 fromInt :: Int -> Direction
 fromInt x = Direction (zn x)

@@ -29,8 +29,10 @@ import GameState
   )
 import UI
   ( UIState (..)
+  , RightPane (..)
   , tileSize
   , centerPaneRect
+  , leftPaneRect
   , playerBoardRect
   --, leftPaneRect
   , rightPaneRect
@@ -40,7 +42,6 @@ import UI
 --import Animation as A
 import Framework.Render.Core (Rectangle, Image (..))
 import Data.Position (Position (..))
-import Data.Variant as V
 
 
 import Effect.Console as C
@@ -94,7 +95,7 @@ drawPlayerBoard :: Instant -> UIState -> GameState -> RendererState -> Effect Un
 drawPlayerBoard t uis (GameState {playerHealth}) vars = do
   let playerHp = (un Health playerHealth).hpCount
       playerBoard = (un Health playerHealth).board
-  clear vars playerBoardRect
+  clear vars leftPaneRect
   drawText vars (show playerHp) { x:10.0, y:0.0 }
   drawImage vars "heart.png" { x:0.0, y: 0.0, width: tileSize, height: tileSize }
   drawBoardBase vars playerBoard playerBoardRect
@@ -127,26 +128,23 @@ drawCenterPane t (UIState uis) (GameState gs) vars = do
 drawRightPane :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
 drawRightPane t (UIState{rightPaneTarget}) (GameState gs) vars = do
   clear vars rightPaneRect
-  V.match
-    { none: \_ -> pure unit
-    , terrain: \_ -> pure unit
-    , enemy: \eid ->
-       case Map.lookup eid gs.enemies of
-            Nothing -> pure unit
-            Just (Enemy e) -> do
-              let name = enemyName e.tag
-                  Health h = e.health
-              wrapText vars name {x: rightPaneRect.x, y: 0.0} rightPaneRect.width
-              drawImage vars "heart.png"
-                { x: targetBoardContainerRect.x --TODO: move these outside
-                , y: targetBoardContainerRect.y -- for column clues
-                , width: tileSize, height: tileSize }
-              drawText vars (show h.hpCount) -- TODO: move for column clues
-                { x: targetBoardContainerRect.x + 10.0
-                , y: targetBoardContainerRect.y }
-              drawBoardBase vars h.board targetBoardRect
-              drawEnemyClues vars e.clueCache
-    } rightPaneTarget
+  case rightPaneTarget of
+       RPEnemy eid -> case Map.lookup eid gs.enemies of
+              Nothing -> pure unit
+              Just (Enemy e) -> do
+                let name = enemyName e.tag
+                    Health h = e.health
+                wrapText vars name {x: rightPaneRect.x, y: 0.0} rightPaneRect.width
+                drawImage vars "heart.png"
+                  { x: targetBoardContainerRect.x --TODO: move these outside
+                  , y: targetBoardContainerRect.y -- for column clues
+                  , width: tileSize, height: tileSize }
+                drawText vars (show h.hpCount) -- TODO: move for column clues
+                  { x: targetBoardContainerRect.x + 10.0
+                  , y: targetBoardContainerRect.y }
+                drawBoardBase vars h.board targetBoardRect
+                drawEnemyClues vars e.clueCache
+       _ -> pure unit
 
 clear :: RendererState -> Rectangle -> Effect Unit
 clear (RendererState { cvars: c }) rect = do

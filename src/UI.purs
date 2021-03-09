@@ -37,16 +37,18 @@ type UI r =
 
 newtype UIState = UIState
   { element :: Element
-  , rightPaneTarget :: V.Variant RightPane
+  , rightPaneTarget :: RightPane
+  , lockedTarget :: RightPane
   , timestamp :: Instant
   , gsTimestamp :: Instant
   }
 
-type RightPane =
-  ( enemy :: EnemyId
-  , terrain :: Terrain
-  , none :: Unit
-  )
+data RightPane =
+  RPEnemy EnemyId
+  | RPTerrain Terrain
+  | RPNoTarget
+
+derive instance eqrp :: Eq RightPane
 
 {-
 data PointerState = Neutral
@@ -63,7 +65,8 @@ initUIState (GameState {p}) = UIState
     { image: "player.png"
     , pos: pure <<< toNumber <$> p
     }
-  , rightPaneTarget: V.inj (SProxy :: SProxy "none") unit
+  , rightPaneTarget: RPNoTarget
+  , lockedTarget: RPNoTarget
   , timestamp: unsafeFromJust $ instant $ Milliseconds 0.0
   , gsTimestamp: unsafeFromJust $ instant $ Milliseconds 0.0
   }
@@ -98,7 +101,7 @@ getDragOffset conf uis@(UIState baseUI) gs = do
 -}
 
 runUI :: UIState -> GameState -> UI Unit
-runUI currentUI gs = do
+runUI currentUI@(UIState u) gs = do
   let default _ = runUI currentUI gs
   { time, value } <- F.input currentUI
   V.default (default unit)
@@ -111,28 +114,58 @@ runUI currentUI gs = do
            in case locate ptrLoc of
                 Other -> default unit
                 CenterPane p ->
-                   let newUI = selectTarget time p currentUI gs
+                   let newUI = lockTarget time p currentUI gs
                     in runUI newUI gs
                 TargetBoard p ->
                    tryAttack time p currentUI gs
+      , pointerMove: \ptr ->
+          let ptrLoc = V { x: Ptr.offsetX ptr, y: Ptr.offsetY ptr }
+           in case locate ptrLoc of
+                CenterPane p ->
+                  let newUI = viewTarget time p currentUI gs
+                   in runUI newUI gs
+                _ -> if u.lockedTarget /= u.rightPaneTarget
+                       then let newUI = toLockedTarget time currentUI
+                            in runUI newUI gs
+                       else default unit
       }
     $ value
 
-selectTarget :: Instant -> Vector Int -> UIState -> GameState -> UIState
-selectTarget t pos (UIState u) gs = UIState u
-  { rightPaneTarget = case getTargetAtPosition pos gs of
-      TargetEnemy eid -> V.inj (SProxy :: SProxy "enemy") eid
-      TargetTerrain terrain -> V.inj (SProxy :: SProxy "terrain") terrain
+rpTarget :: Vector Int -> GameState -> RightPane
+rpTarget pos gs = case getTargetAtPosition pos gs of
+  TargetEnemy eid -> RPEnemy eid
+  TargetTerrain terrain -> RPTerrain terrain
+
+viewTarget :: Instant -> Vector Int -> UIState -> GameState -> UIState
+viewTarget t pos uis@(UIState u) gs =
+  case rpTarget pos gs of
+    target@(RPEnemy _) ->
+        UIState u
+        { rightPaneTarget = target
+        , timestamp = t
+        }
+    _ -> toLockedTarget t uis
+
+lockTarget :: Instant -> Vector Int -> UIState -> GameState -> UIState
+lockTarget t pos (UIState u) gs =
+  let target = rpTarget pos gs
+   in UIState u
+        { rightPaneTarget = target
+        , lockedTarget = target
+        , timestamp = t
+        }
+
+toLockedTarget :: Instant -> UIState -> UIState
+toLockedTarget t (UIState u) = UIState u
+  { rightPaneTarget = u.lockedTarget
   , timestamp = t
   }
 
 getTarget :: UIState -> Maybe EnemyId
 getTarget (UIState {rightPaneTarget}) =
-  V.default Nothing
-  # V.onMatch
-    { enemy: Just
-    }
-  $ rightPaneTarget
+  case rightPaneTarget of
+       RPEnemy eid -> Just eid
+       _ -> Nothing
 
 tryAttack :: Instant -> Vector Int -> UIState -> GameState -> UI Unit
 tryAttack t pos uis gs =

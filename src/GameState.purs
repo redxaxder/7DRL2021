@@ -58,7 +58,11 @@ exampleInjuries = BoardCoord <$> [ vec 1 1, vec 2 3, vec 4 4 ]
 
 exampleRoombaBoard :: Board
 exampleRoombaBoard = Board
-  { organs: [ Tuple hpOrgan1 (BoardCoord (vec 2 2)) ]
+  { organs:
+     [ Tuple hpOrgan1 (BoardCoord (vec 2 2))
+     , Tuple hpOrgan1 (BoardCoord (vec 2 5))
+     , Tuple hpOrgan1 (BoardCoord (vec 4 0))
+     ]
   , injuries: Set.empty
   }
 
