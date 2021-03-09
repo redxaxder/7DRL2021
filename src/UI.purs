@@ -383,5 +383,6 @@ imagePaths =
   , "roomba.png"
   , "wall.png"
   , "Heart4.png"
+  , "Heart4injured.png"
   , "placeholder.png"
   ]

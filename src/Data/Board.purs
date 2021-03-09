@@ -7,10 +7,13 @@ import Data.Set as Set
 import Framework.Direction (move, directions8)
 
 data OrganSize = OrganSize Int Int
-data OrganType = Hp
+data OrganType = Hp | PlayerHeartLarge
+
 data Organ = Organ OrganSize OrganType
 
 newtype BoardCoord = BoardCoord (Vector Int)
+
+type InternalOrgan = Tuple Organ BoardCoord
 newtype Board = Board
   { organs :: Array (Tuple Organ BoardCoord)
   -- , organIndex :: Map BoardCoord Organ
@@ -45,6 +48,7 @@ isInside (BoardCoord (V{x: px,y: py}))
 
 isHpOrgan :: Organ -> Boolean
 isHpOrgan (Organ _ Hp) = true
+isHpOrgan (Organ _ PlayerHeartLarge) = true
 
 getClue :: BoardCoord -> Board -> Clue
 getClue (BoardCoord p) b =
@@ -57,14 +61,14 @@ getClue (BoardCoord p) b =
       else EmptyClue
 
 hpCount :: Board -> Int
-hpCount board = Array.length $ Array.filter isHp (intactOrgans board)
-  where
-  isHp (Organ _ Hp) = true
-  -- isHp _ = false
+hpCount board = Array.length $ Array.filter isHpOrgan (intactOrgans board)
 
 intactOrgans :: Board -> Array Organ
-intactOrgans (Board board) =
-  Tuple.fst <$> Array.filter noInjuries board.organs
+intactOrgans board = Tuple.fst <$> (getOrgans board).intact
+
+getOrgans :: Board ->
+  { intact :: Array InternalOrgan, injured :: Array InternalOrgan }
+getOrgans (Board board) = {intact, injured}
   where
   noInjuries (Tuple (Organ (OrganSize w h) _) (BoardCoord (V {x, y}))) =
     let xmin = x
@@ -76,6 +80,7 @@ intactOrgans (Board board) =
        && i.x <= xmax
        && i.y >= ymin
        && i.y <= ymax) board.injuries
+  {yes: intact, no: injured} = Array.partition noInjuries board.organs
 
 data Clue =
   HpClue Int -- Health only

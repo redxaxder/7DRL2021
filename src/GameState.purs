@@ -80,7 +80,11 @@ freshPlayerHealth = Health
 
 freshPlayerBoard :: Board
 freshPlayerBoard = Board
-  { organs: [ Tuple playerHpOrgan (BoardCoord (vec 2 2)) ]
+  { organs:
+      [ Tuple playerHpOrgan (BoardCoord (vec 1 1))
+      , Tuple playerHpOrgan (BoardCoord (vec 3 1))
+      , Tuple playerHpOrgan (BoardCoord (vec 2 3))
+      ]
   , injuries: Set.empty
   }
 
@@ -88,7 +92,7 @@ hpOrgan1 :: Organ
 hpOrgan1 = Organ (OrganSize 1 1) Hp
 
 playerHpOrgan :: Organ
-playerHpOrgan = Organ (OrganSize 2 2) Hp
+playerHpOrgan = Organ (OrganSize 2 2) PlayerHeartLarge
 
 isWall :: Vector Int -> LinearIndex Terrain -> Boolean
 isWall v t = (==) Wall $ fromMaybe Floor (LI.index t (fromVector v))

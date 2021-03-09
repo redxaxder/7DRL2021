@@ -15,7 +15,9 @@ import Data.Board
   , Clue (..)
   , Organ (..)
   , OrganType (..)
+  , OrganSize (..)
   , getOrganAtPosition
+  , getOrgans
   )
 import Data.Terrain
   ( Terrain(..)
@@ -95,14 +97,20 @@ draw t uis@(UIState {timestamp, gsTimestamp}) gs rs@(RendererState r) = do
     Ref.write (Just gsTimestamp) r.gameStateId
 
 drawPlayerBoard :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
-drawPlayerBoard t uis (GameState {playerHealth}) vars = do
+drawPlayerBoard t uis (GameState {playerHealth}) rs = do
   let playerHp = (un Health playerHealth).hpCount
       playerBoard = (un Health playerHealth).board
-  clear vars leftPaneRect
-  drawText vars (show playerHp) (V{ x:10.0, y:0.0 })
-  drawImage vars "heart.png" { x:0.0, y: 0.0, width: tileSize, height: tileSize }
-  drawBoardBase vars playerBoard playerBoardRect
-  -- TODO draw player organs
+      playerOrgans = getOrgans playerBoard
+      anchor = let {x,y} = playerBoardRect in V{x,y}
+  clear rs leftPaneRect
+  drawText rs (show playerHp) (V{ x:10.0, y:0.0 })
+  drawImage rs "heart.png" { x:0.0, y: 0.0, width: tileSize, height: tileSize }
+  drawBoardBase rs playerBoard playerBoardRect
+  for_ playerOrgans.intact \(Tuple organ (BoardCoord bc)) ->
+    drawOrgan true rs organ (fromGrid bc + anchor)
+  for_ playerOrgans.injured \(Tuple organ (BoardCoord bc)) ->
+    drawOrgan false rs organ (fromGrid bc + anchor)
+
 
 drawCenterPane :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
 drawCenterPane t (UIState uis) (GameState gs) vars = do
@@ -186,10 +194,20 @@ drawEnemyBoardDetails rs (Enemy e) = do
 fromGrid :: Vector Int -> Vector Number
 fromGrid p = p <#> \x -> toNumber x * tileSize
 
-drawInjury :: RendererState
-   -> Organ -> Vector Number -> Effect Unit
-drawInjury rs (Organ _ Hp) (V{x,y}) =
-  drawImage rs "injuredheart.png" { x, y, width: tileSize, height: tileSize }
+
+organImage :: OrganType -> Boolean -> String
+organImage Hp true  = "heart.png"
+organImage Hp false = "injuredheart.png"
+organImage PlayerHeartLarge true = "Heart4.png"
+organImage PlayerHeartLarge false = "Heart4injured.png"
+
+drawOrgan :: Boolean -> RendererState -> Organ -> Vector Number -> Effect Unit
+drawOrgan isIntact rs (Organ (OrganSize w h) organType) (V{x,y}) =
+  drawImage rs (organImage organType isIntact)
+    { x,y, width: tileSize * toNumber w, height: tileSize * toNumber h }
+
+drawInjury :: RendererState -> Organ -> Vector Number -> Effect Unit
+drawInjury = drawOrgan false
 
 drawClue :: RendererState -> Clue -> Vector Number -> Effect Unit
 drawClue rs (HpClue i) p =    drawColorText rs (show i) (Color "#a00") p
