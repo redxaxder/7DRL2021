@@ -20,6 +20,8 @@ newtype Board = Board
 derive instance ordBoardCoord :: Ord BoardCoord
 derive instance eqBoardCoord :: Eq BoardCoord
 
+derive instance newtypeBoard :: Newtype Board _
+
 injureBoard :: Vector Int -> Board -> Board
 injureBoard v (Board b) = Board b {injuries = Set.insert (BoardCoord v) b.injuries}
 

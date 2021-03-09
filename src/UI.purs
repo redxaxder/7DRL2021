@@ -378,6 +378,7 @@ imagePaths =
   , "ground.png"
   , "heal.png"
   , "heart.png"
+  , "injuredheart.png"
   , "player.png"
   , "roomba.png"
   , "wall.png"

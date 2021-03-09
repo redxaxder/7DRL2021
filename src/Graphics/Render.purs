@@ -13,6 +13,9 @@ import Data.Board
   ( Board(..)
   , BoardCoord (..)
   , Clue (..)
+  , Organ (..)
+  , OrganType (..)
+  , getOrganAtPosition
   )
 import Data.Terrain
   ( Terrain(..)
@@ -96,7 +99,7 @@ drawPlayerBoard t uis (GameState {playerHealth}) vars = do
   let playerHp = (un Health playerHealth).hpCount
       playerBoard = (un Health playerHealth).board
   clear vars leftPaneRect
-  drawText vars (show playerHp) { x:10.0, y:0.0 }
+  drawText vars (show playerHp) (V{ x:10.0, y:0.0 })
   drawImage vars "heart.png" { x:0.0, y: 0.0, width: tileSize, height: tileSize }
   drawBoardBase vars playerBoard playerBoardRect
   -- TODO draw player organs
@@ -131,19 +134,21 @@ drawRightPane t (UIState{rightPaneTarget}) (GameState gs) vars = do
   case rightPaneTarget of
        RPEnemy eid -> case Map.lookup eid gs.enemies of
               Nothing -> pure unit
-              Just (Enemy e) -> do
+              Just n@(Enemy e) -> do
                 let name = enemyName e.tag
                     Health h = e.health
-                wrapText vars name {x: rightPaneRect.x, y: 0.0} rightPaneRect.width
+                    nameLoc = let {x,y} = rightPaneRect in V{x,y}
+                wrapText vars name nameLoc rightPaneRect.width
                 drawImage vars "heart.png"
                   { x: targetBoardContainerRect.x --TODO: move these outside
                   , y: targetBoardContainerRect.y -- for column clues
                   , width: tileSize, height: tileSize }
                 drawText vars (show h.hpCount) -- TODO: move for column clues
-                  { x: targetBoardContainerRect.x + 10.0
-                  , y: targetBoardContainerRect.y }
+                  (V { x: targetBoardContainerRect.x + 10.0
+                  , y: targetBoardContainerRect.y
+                  })
                 drawBoardBase vars h.board targetBoardRect
-                drawEnemyClues vars e.clueCache
+                drawEnemyBoardDetails vars n
        _ -> pure unit
 
 clear :: RendererState -> Rectangle -> Effect Unit
@@ -166,39 +171,52 @@ drawBoardBase vars (Board {injuries}) {x,y} =
           , height: tileSize
           }
 
-drawEnemyClues :: RendererState -> Map BoardCoord Clue -> Effect Unit
-drawEnemyClues rs m =
-  forWithIndex_ m \(BoardCoord (V{x,y})) clue ->
-    let cluePosition =
-          { x: toNumber x * tileSize + targetBoardRect.x + 2.0
-          , y: toNumber y * tileSize + targetBoardRect.y
-          }
-     in case clue of
-        HpClue i -> drawColorText rs (show i) (Color "red") cluePosition
-        EmptyClue -> drawColorText rs "0" (Color "#777") cluePosition
-        _ -> drawColorText rs "?" (Color "#333") cluePosition
+drawEnemyBoardDetails :: RendererState -> Enemy -> Effect Unit
+drawEnemyBoardDetails rs (Enemy e) = do
+  let Health {board} = e.health
+      anchor = let {x,y} = targetBoardRect in V{x,y}
+  for_ (un Board board).injuries \p@(BoardCoord v) ->
+    let drawPos = fromGrid v + anchor
+     in case getOrganAtPosition board p of
+          Just organ -> drawInjury rs organ drawPos
+          Nothing -> case Map.lookup p e.clueCache of
+                          Just clue -> drawClue rs clue drawPos
+                          Nothing -> pure unit
 
+fromGrid :: Vector Int -> Vector Number
+fromGrid p = p <#> \x -> toNumber x * tileSize
 
+drawInjury :: RendererState
+   -> Organ -> Vector Number -> Effect Unit
+drawInjury rs (Organ _ Hp) (V{x,y}) =
+  drawImage rs "injuredheart.png" { x, y, width: tileSize, height: tileSize }
 
-drawText :: RendererState -> String -> { x :: Number, y:: Number } -> Effect Unit
+drawClue :: RendererState -> Clue -> Vector Number -> Effect Unit
+drawClue rs (HpClue i) p =    drawColorText rs (show i) (Color "#a00") p
+drawClue rs (ArmorClue i) p = drawColorText rs (show i) (Color "blue") p
+drawClue rs (MixedClue i) p = drawColorText rs (show i) (Color "purple") p
+drawClue rs EmptyClue p =     drawColorText rs "0" (Color "#777") p
+drawClue rs ConcealedClue p = drawColorText rs "?" (Color "#333") p
+
+drawText :: RendererState -> String -> Vector Number -> Effect Unit
 drawText vars string loc =
   drawColorText vars string (Color "white") loc
 
 newtype Color = Color String
 foreign import setTextBaselineHanging :: Canvas.Context2D -> Effect Unit
 
-drawColorText :: RendererState -> String -> Color -> { x :: Number, y:: Number } -> Effect Unit
-drawColorText (RendererState {cvars}) string (Color c)loc = do
+drawColorText :: RendererState -> String -> Color -> Vector Number -> Effect Unit
+drawColorText (RendererState {cvars}) string (Color c) (V loc) = do
   ctx <- Canvas.getContext2D cvars.canvas
   Canvas.setFont ctx "10px CapitalHillMono"
   setTextBaselineHanging ctx
   Canvas.setFillStyle ctx c
-  Canvas.fillText ctx string loc.x (loc.y + 2.0)
+  Canvas.fillText ctx string (loc.x + 2.0) (loc.y + 2.0)
 
 wrapText
   :: RendererState
   -> String
-  -> { x :: Number, y:: Number }
+  -> Vector Number
   -> Number
   -> Effect Unit
 wrapText vars string loc _maxWidth =
