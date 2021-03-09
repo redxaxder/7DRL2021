@@ -21,11 +21,11 @@ exports.clientY = function (e) {
 };
 
 exports.offsetX = function (e) {
-  return e.offsetX;
+  return e.pageX - e.target.offsetLeft;
 };
 
 exports.offsetY = function (e) {
-  return e.offsetY;
+  return e.pageY - e.target.offsetTop;
 };
 
 exports.pageX = function (e) {
