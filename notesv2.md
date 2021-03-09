@@ -351,8 +351,6 @@ animations:
 
 winning
 
-game log
-
 Milestone 2
 
 weapons
@@ -365,6 +363,9 @@ weapons
     - chainsaw
     - laser sword
     - rifle
+
+ux
+  - weapon targetting highlights
 
 armor
   - enemies with armor
@@ -407,6 +408,8 @@ Milestone 4
   - cosmetic trash
   - fun messages
     - oh that cant be sanitary
+
+game log
 
 
 
