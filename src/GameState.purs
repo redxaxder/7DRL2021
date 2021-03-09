@@ -6,6 +6,7 @@ import Data.Set as Set
 import Data.Map as Map
 import Data.LinearIndex (LinearIndex (..))
 import Data.LinearIndex as LI
+import Data.FoldableWithIndex (findWithIndex)
 import Data.String as String
 import Data.String.CodeUnits (toCharArray)
 import Data.Position (Position (..))
@@ -30,10 +31,37 @@ newState = do
   pure $ GameState
    { p: V {x: 1, y:1}
    , playerHealth: freshPlayerHealth
-   , enemies: Map.empty
+   , enemies: exampleEnemies
    , terrain: fromMaybe (LI.fill 40 40 Floor) (freshTerrainFromString demoTerrain)
    , rng: random
    }
+
+exampleEnemies :: Map EnemyId Enemy
+exampleEnemies =
+  Map.fromFoldableWithIndex
+  [ injureEnemyMulti exampleInjuries $ Enemy
+    { location: V{x:5, y:5}
+    , health: mkHealth exampleRoombaBoard
+    , clueCache: Map.empty
+    , tag: Roomba
+    }
+  ]
+
+mkHealth :: Board -> Health
+mkHealth board = Health
+  { hpCount: hpCount board
+  , board
+  }
+
+exampleInjuries :: Array BoardCoord
+exampleInjuries = BoardCoord <$> [ vec 1 1, vec 2 3, vec 4 4 ]
+
+exampleRoombaBoard :: Board
+exampleRoombaBoard = Board
+  { organs: [ Tuple hpOrgan1 (BoardCoord (vec 2 2)) ]
+  , injuries: Set.empty
+  }
+
 
 freshTerrainFromString :: String -> Maybe (LinearIndex Terrain)
 freshTerrainFromString s = if String.length s == 40*40 then Just $ LinearIndex {width: 40, height: 40, values: t} else Nothing
@@ -51,6 +79,9 @@ freshPlayerBoard = Board
   { organs: [ Tuple playerHpOrgan (BoardCoord (vec 2 2)) ]
   , injuries: Set.empty
   }
+
+hpOrgan1 :: Organ
+hpOrgan1 = Organ (OrganSize 1 1) Hp
 
 playerHpOrgan :: Organ
 playerHpOrgan = Organ (OrganSize 2 2) Hp
@@ -78,10 +109,13 @@ step (GameState gs) a@(Attack bc eid) =
 step (GameState gs) _ = Right $ GameState gs
 
 injureEnemy :: BoardCoord -> Enemy -> Enemy
-injureEnemy bc (Enemy e) = 
+injureEnemy bc (Enemy e) =
   let health@(Health {board}) = injure bc e.health
       clue = getClue bc board
    in Enemy e { health = health, clueCache = Map.insert bc clue e.clueCache}
+
+injureEnemyMulti :: Array BoardCoord -> Enemy -> Enemy
+injureEnemyMulti bcs e = foldr injureEnemy e bcs
 
 injure :: BoardCoord -> Health -> Health
 injure (BoardCoord v) (Health h) =
@@ -114,6 +148,26 @@ newtype GameState = GameState
   , terrain :: LinearIndex Terrain
   , rng :: R.Gen
   }
+
+
+data Target =
+  TargetEnemy EnemyId
+  | TargetTerrain Terrain
+
+getTargetAtPosition :: Vector Int -> GameState -> Target
+getTargetAtPosition p gs = case getEnemyAtPosition p gs of
+  Just eid -> TargetEnemy eid
+  Nothing -> TargetTerrain $ getTerrainAtPosition p gs
+
+getEnemyAtPosition :: Vector Int -> GameState -> Maybe EnemyId
+getEnemyAtPosition p (GameState gs) = do
+  -- loop through all enemies and check if one of them is at position p
+  -- if the slowness ends up mattering, we should maintain an index instead
+  {index} <- findWithIndex (\eid (Enemy e) -> e.location == p) gs.enemies
+  pure index
+
+getTerrainAtPosition :: Vector Int -> GameState -> Terrain
+getTerrainAtPosition p (GameState {terrain}) = fromMaybe Floor $ LI.index terrain (fromVector p)
 
 type EnemyId = Int
 type WeaponId = Int

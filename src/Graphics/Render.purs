@@ -12,6 +12,7 @@ import Data.Set as Set
 import Data.Board
   ( Board(..)
   , BoardCoord (..)
+  , Clue (..)
   )
 import Data.Terrain
   ( Terrain(..)
@@ -30,17 +31,18 @@ import UI
   ( UIState (..)
   , tileSize
   , centerPaneRect
-  , leftPaneRect
+  , playerBoardRect
+  --, leftPaneRect
   , rightPaneRect
-  ) -- , Element (..))
+  , targetBoardContainerRect
+  , targetBoardRect
+  )
 --import Animation as A
 import Framework.Render.Core (Rectangle, Image (..))
 import Data.Position (Position (..))
 import Data.Variant as V
 
 
-import Data.DateTime.Instant (instant)
-import Data.Time.Duration (Milliseconds (..))
 import Effect.Console as C
 
 {-
@@ -80,7 +82,7 @@ draw t uis@(UIState {timestamp, gsTimestamp}) gs rs@(RendererState r) = do
       gsDirty = maybe true ((>) gsTimestamp) prevGS
   when uiDirty $ do
     C.log "draw ui"
-    drawLeftPane t uis gs rs
+    drawPlayerBoard t uis gs rs
     drawRightPane t uis gs rs
     Ref.write (Just timestamp) r.uiStateId
   when gsDirty $ do
@@ -88,14 +90,14 @@ draw t uis@(UIState {timestamp, gsTimestamp}) gs rs@(RendererState r) = do
     drawCenterPane t uis gs rs
     Ref.write (Just gsTimestamp) r.gameStateId
 
-drawLeftPane :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
-drawLeftPane t uis (GameState {playerHealth}) vars = do
+drawPlayerBoard :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
+drawPlayerBoard t uis (GameState {playerHealth}) vars = do
   let playerHp = (un Health playerHealth).hpCount
       playerBoard = (un Health playerHealth).board
-  clear vars leftPaneRect
+  clear vars playerBoardRect
   drawText vars (show playerHp) { x:10.0, y:0.0 }
   drawImage vars "heart.png" { x:0.0, y: 0.0, width: tileSize, height: tileSize }
-  drawBoardBase vars playerBoard { x: 0.0, y: 11.0 }
+  drawBoardBase vars playerBoard playerBoardRect
   -- TODO draw player organs
 
 drawCenterPane :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
@@ -127,8 +129,7 @@ drawRightPane t (UIState{rightPaneTarget}) (GameState gs) vars = do
   clear vars rightPaneRect
   V.match
     { none: \_ -> pure unit
-    , floor: \_ -> pure unit
-    , wall: \_ -> pure unit
+    , terrain: \_ -> pure unit
     , enemy: \eid ->
        case Map.lookup eid gs.enemies of
             Nothing -> pure unit
@@ -137,9 +138,14 @@ drawRightPane t (UIState{rightPaneTarget}) (GameState gs) vars = do
                   Health h = e.health
               wrapText vars name {x: rightPaneRect.x, y: 0.0} rightPaneRect.width
               drawImage vars "heart.png"
-                { x: rightPaneRect.x, y: 30.0, width: tileSize, height: tileSize }
-              drawText vars (show h.hpCount) { x: rightPaneRect.x + 10.0, y: 30.0 }
-              drawBoardBase vars h.board { x: rightPaneRect.x, y: 50.0 }
+                { x: targetBoardContainerRect.x --TODO: move these outside
+                , y: targetBoardContainerRect.y -- for column clues
+                , width: tileSize, height: tileSize }
+              drawText vars (show h.hpCount) -- TODO: move for column clues
+                { x: targetBoardContainerRect.x + 10.0
+                , y: targetBoardContainerRect.y }
+              drawBoardBase vars h.board targetBoardRect
+              drawEnemyClues vars e.clueCache
     } rightPaneTarget
 
 clear :: RendererState -> Rectangle -> Effect Unit
@@ -148,10 +154,7 @@ clear (RendererState { cvars: c }) rect = do
   Canvas.setFillStyle ctx "black"
   Canvas.fillRect ctx rect
 
-gridToScreen :: Vector Number -> Vector Number
-gridToScreen p = (\x -> x * tileSize) <$> p
-
-drawBoardBase :: RendererState -> Board -> {x :: Number, y :: Number} -> Effect Unit
+drawBoardBase :: RendererState -> Board -> Rectangle -> Effect Unit
 drawBoardBase vars (Board {injuries}) {x,y} =
   for_ (Array.range 0 5) \px ->
     for_ (Array.range 0 5) \py ->
@@ -164,6 +167,20 @@ drawBoardBase vars (Board {injuries}) {x,y} =
           , width: tileSize
           , height: tileSize
           }
+
+drawEnemyClues :: RendererState -> Map BoardCoord Clue -> Effect Unit
+drawEnemyClues rs m =
+  forWithIndex_ m \(BoardCoord (V{x,y})) clue ->
+    let cluePosition =
+          { x: toNumber x * tileSize + targetBoardRect.x + 2.0
+          , y: toNumber y * tileSize + targetBoardRect.y
+          }
+     in case clue of
+        HpClue i -> drawColorText rs (show i) (Color "red") cluePosition
+        EmptyClue -> drawColorText rs "0" (Color "#777") cluePosition
+        _ -> drawColorText rs "?" (Color "#333") cluePosition
+
+
 
 drawText :: RendererState -> String -> { x :: Number, y:: Number } -> Effect Unit
 drawText vars string loc =

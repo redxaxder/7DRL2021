@@ -69,7 +69,7 @@ intactOrgans (Board board) =
         xmax = w + x - 1
         ymin = y
         ymax = y + h - 1
-    in any (\(BoardCoord (V i)) ->
+    in not $ any (\(BoardCoord (V i)) ->
        i.x >= xmin
        && i.x <= xmax
        && i.y >= ymin

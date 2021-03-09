@@ -11,25 +11,32 @@ import GameState
   ( GameState (..)
   , GameAction (..)
   , FailedAction (..)
+  , getTargetAtPosition
+  , Target (..)
   , EnemyId
   )
+
+import Data.Terrain (Terrain)
 import Input (Input)
 import Data.Variant as V
 
 import Data.Either (either)
 import PointerEvent as Ptr
+import Data.Int as Int
+
+import Data.Board (BoardCoord (..))
 
 import Framework.Render.Core (Rectangle)
 
 import Data.DateTime.Instant (instant)
 import Data.Time.Duration (Milliseconds (..))
+import Control.Alt ((<|>))
 
 type UI r =
   F.UIM GameState GameAction FailedAction UIState Input r
 
 newtype UIState = UIState
   { element :: Element
-  , pointerState :: PointerState
   , rightPaneTarget :: V.Variant RightPane
   , timestamp :: Instant
   , gsTimestamp :: Instant
@@ -37,17 +44,18 @@ newtype UIState = UIState
 
 type RightPane =
   ( enemy :: EnemyId
-  , floor :: Unit
-  , wall :: Unit
+  , terrain :: Terrain
   , none :: Unit
   )
 
+{-
 data PointerState = Neutral
   | Dragging
     { pointerId :: Number
     , start :: Vector Number
     , current :: Vector Number
     }
+  -}
 
 initUIState :: GameState -> UIState
 initUIState (GameState {p}) = UIState
@@ -55,7 +63,6 @@ initUIState (GameState {p}) = UIState
     { image: "player.png"
     , pos: pure <<< toNumber <$> p
     }
-  , pointerState: Neutral
   , rightPaneTarget: V.inj (SProxy :: SProxy "none") unit
   , timestamp: unsafeFromJust $ instant $ Milliseconds 0.0
   , gsTimestamp: unsafeFromJust $ instant $ Milliseconds 0.0
@@ -64,14 +71,7 @@ initUIState (GameState {p}) = UIState
 mainScreen :: GameState -> UI Unit
 mainScreen gs = runUI (initUIState gs) gs
 
-data HitResult target =
-    NoHit
-  | HitClickable target
-  | HitDraggable target
-
-hitTest :: UIState -> GameState -> Vector Number -> HitResult Unit
-hitTest uis gs loc = spy (show loc) NoHit
-
+{-
 getDragOffset ::
    { pointerId :: Number
    , start :: Vector Number
@@ -95,6 +95,7 @@ getDragOffset conf uis@(UIState baseUI) gs = do
               else default
       }
     $ value
+-}
 
 runUI :: UIState -> GameState -> UI Unit
 runUI currentUI gs = do
@@ -104,26 +105,46 @@ runUI currentUI gs = do
     # V.onMatch
       { keyDown: \key -> case getDir key of
            Nothing -> default unit
-           Just d -> do
-             result <- F.action (Move d)
-             let gs' = either (const gs) identity result
-             runUI (updateUIState time gs result currentUI) gs'
+           Just d -> doAction (Move d) time currentUI gs
       , pointerDown: \ptr ->
           let ptrLoc = V { x: Ptr.offsetX ptr, y: Ptr.offsetY ptr }
-           in case hitTest currentUI gs ptrLoc of
-              NoHit -> default unit
-              HitClickable _ -> default unit
-              HitDraggable _ -> do
-                 dragOffset <- getDragOffset
-                    { pointerId: Ptr.pointerId ptr
-                    , start: ptrLoc
-                    , current: ptrLoc
-                    } currentUI gs
-                 case dragOffset of
-                      Nothing -> default unit
-                      Just result -> default $ spy (show result) unit
+           in case locate ptrLoc of
+                Other -> default unit
+                CenterPane p ->
+                   let newUI = selectTarget time p currentUI gs
+                    in runUI newUI gs
+                TargetBoard p ->
+                   tryAttack time p currentUI gs
       }
     $ value
+
+selectTarget :: Instant -> Vector Int -> UIState -> GameState -> UIState
+selectTarget t pos (UIState u) gs = UIState u
+  { rightPaneTarget = case getTargetAtPosition pos gs of
+      TargetEnemy eid -> V.inj (SProxy :: SProxy "enemy") eid
+      TargetTerrain terrain -> V.inj (SProxy :: SProxy "terrain") terrain
+  , timestamp = t
+  }
+
+getTarget :: UIState -> Maybe EnemyId
+getTarget (UIState {rightPaneTarget}) =
+  V.default Nothing
+  # V.onMatch
+    { enemy: Just
+    }
+  $ rightPaneTarget
+
+tryAttack :: Instant -> Vector Int -> UIState -> GameState -> UI Unit
+tryAttack t pos uis gs =
+  case getTarget uis of
+       Nothing -> runUI uis gs
+       Just tid -> doAction (Attack (BoardCoord pos) tid) t uis gs
+
+doAction :: GameAction -> Instant -> UIState -> GameState -> UI Unit
+doAction action time uis gs = do
+  result <- F.action action
+  let gs' = either (const gs) identity result
+  runUI (updateUIState time gs result uis) gs'
 
 updateUIState
   :: Instant
@@ -172,37 +193,85 @@ data Element = Element
 -- UI dimensions ---------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-leftPaneRect :: Rectangle
-leftPaneRect = { x:0.0,y:0.0
-  , width: leftPaneTiles * tileSize + leftPaneBorder
-  , height: totalHeight
+cutLeft :: Number -> Rectangle -> Rectangle
+cutLeft d r =
+  r { width = d
+    }
+
+cutRight :: Number -> Rectangle -> Rectangle
+cutRight d r =
+  r { x = r.x + d
+    , width = r.width - d
+    }
+
+cutUp :: Number -> Rectangle -> Rectangle
+cutUp d r =
+  r { height = d
+    }
+
+cutDown :: Number -> Rectangle -> Rectangle
+cutDown d r =
+  r { y = r.y + d
+    , height = r.height - d
+    }
+
+screen :: Rectangle
+screen =
+  { x: 0.0
+  , y: 0.0
+  , width: (leftPaneTiles + centerPaneTiles + rightPaneTiles) * tileSize
+               + leftPaneBorder + rightPaneBorder
+  , height: verticalTiles * tileSize
   }
+
+leftPaneSize :: Number
+leftPaneSize = leftPaneTiles * tileSize + leftPaneBorder
+
+leftPaneRect :: Rectangle
+leftPaneRect = cutLeft leftPaneSize screen
+
+playerBoardRect :: Rectangle
+playerBoardRect = leftPaneRect
+  # cutDown 11.0
+  # cutUp (6.0 * tileSize)
+
+centerPaneSize :: Number
+centerPaneSize = centerPaneTiles * tileSize
 
 centerPaneRect :: Rectangle
-centerPaneRect =
-  { x: leftPaneRect.width
-  , y: 0.0
-  , width: centerPaneTiles * tileSize + rightPaneBorder
-  , height: totalHeight
-  }
+centerPaneRect = screen
+  # cutRight leftPaneSize
+  # cutLeft centerPaneSize
 
 rightPaneRect :: Rectangle
-rightPaneRect =
-  { x: centerPaneRect.x + centerPaneRect.width
-  , y: 0.0
-  , width: rightPaneTiles * tileSize
-  , height: totalHeight
-  }
+rightPaneRect = screen
+  # cutRight (leftPaneSize + centerPaneSize)
+
+targetNameSize :: Number
+targetNameSize = 3.0 * tileSize
+
+targetNameRect :: Rectangle
+targetNameRect = rightPaneRect
+  # cutUp targetNameSize
+
+targetBoardContainerSize :: Number
+targetBoardContainerSize = rightPaneTiles * tileSize
+
+targetBoardContainerRect :: Rectangle
+targetBoardContainerRect = rightPaneRect
+  # cutDown targetNameSize
+  # cutUp targetBoardContainerSize
+
+targetPadding :: Number
+targetPadding = (rightPaneTiles - 6.0) * tileSize
+
+targetBoardRect :: Rectangle
+targetBoardRect = targetBoardContainerRect
+  # cutDown targetPadding
+  # cutRight targetPadding
 
 targetDimensions :: { width :: Number, height :: Number }
-
-targetDimensions = { width: totalWidth, height: totalHeight}
-
-totalWidth :: Number
-totalWidth = leftPaneRect.width + centerPaneRect.width + rightPaneRect.width
-
-totalHeight :: Number
-totalHeight = tileSize * verticalTiles
+targetDimensions = { width: screen.width, height: screen.height }
 
 leftPaneTiles :: Number
 leftPaneTiles = 6.0
@@ -217,13 +286,52 @@ centerPaneTiles :: Number
 centerPaneTiles = 40.0
 
 rightPaneTiles :: Number
-rightPaneTiles = 10.0
+rightPaneTiles = 9.0
 
 verticalTiles :: Number
 verticalTiles = 40.0
 
 tileSize :: Number
 tileSize = 10.0
+
+--------------------------------------------------------------------------------
+-- Locating clicks -------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+data UILocation =
+  TargetBoard (Vector Int)
+  | CenterPane (Vector Int)
+  | Other
+
+-- If the position is inside the rect, returns
+-- rect-local coordinates for that position
+inRect :: Vector Number -> Rectangle -> Maybe (Vector Number)
+inRect (V v) r =
+  let x = v.x - r.x
+      y = v.y - r.y
+   in if    x >= 0.0 && x <= r.width
+         && y >= 0.0 && y <= r.height
+      then Just (V{x,y})
+      else Nothing
+
+locate :: Vector Number -> UILocation
+locate p = fromMaybe Other $ locateCenterPane p <|> locateTargetBoard p
+
+locateCenterPane :: Vector Number -> Maybe UILocation
+locateCenterPane p = do
+  (V v) <- inRect p centerPaneRect
+  pure $ CenterPane $ V
+         { x: Int.floor (v.x / tileSize)
+         , y: Int.floor (v.y / tileSize)
+         }
+
+locateTargetBoard :: Vector Number -> Maybe UILocation
+locateTargetBoard p = do
+  (V v) <- inRect p targetBoardRect
+  pure $ TargetBoard $ V
+         { x: Int.floor (v.x / tileSize)
+         , y: Int.floor (v.y / tileSize)
+         }
 
 --------------------------------------------------------------------------------
 -- Image paths -----------------------------------------------------------------
