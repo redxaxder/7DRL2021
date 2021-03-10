@@ -191,8 +191,16 @@ doAction :: GameAction -> Instant -> UIState -> GameState -> UI Unit
 doAction action time uis gs = do
   result <- F.action action
   let gs' = either (const gs) identity result
-      uis' = updateUIState time gs result uis
+      uis' = nextUI time gs result uis
   runUI uis' gs'
+
+nextUI
+  :: Instant
+  -> GameState
+  -> Either FailedAction GameState
+  -> UIState
+  -> UIState
+nextUI t gs a uis = updateUIState t gs a (clearAudio uis)
 
 updateUIState
   :: Instant
