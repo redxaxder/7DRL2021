@@ -8,6 +8,7 @@ import Data.Array as Array
 import Data.Map as Map
 import Effect.Exception (error)
 import Effect.Ref as Ref
+import Math (round)
 import Effect.Ref (Ref)
 import Graphics.Canvas as Canvas
 import Data.Set as Set
@@ -108,14 +109,10 @@ restoreCenterPane (RendererState rs) rect = do
   -- rect.xy - centerPane.xy
   -- and we want to write to the rect given by
   --  rect.xy
-  let dx = rect.x - centerPaneRect.x
-      dy = rect.y - centerPaneRect.y
-      -- we solve for dirtyX by
-      -- rect.x = drawLocation = dx + dirtyX
-      -- dirtyX = rect.x - dx
-      --        = rect.x - (rect.x - centerPaneRect.x)
-      dirtyX = centerPaneRect.x
-      dirtyY = centerPaneRect.y
+  let dx = centerPaneRect.x
+      dy = centerPaneRect.y
+      dirtyX = rect.x - centerPaneRect.x
+      dirtyY = rect.y - centerPaneRect.y
   Canvas.putImageDataFull ctx id
     dx dy
     dirtyX dirtyY
@@ -136,22 +133,6 @@ newRendererState cvars = do
     , centerPaneCache
     }
 
-imageDataExperiment :: RendererState -> Effect Unit
-imageDataExperiment (RendererState {cvars}) = do
-  ctx <- Canvas.getContext2D cvars.canvas
-  i <- Canvas.getImageData ctx
-    playerBoardRect.x playerBoardRect.y
-    playerBoardRect.width playerBoardRect.height
-  Canvas.putImageDataFull ctx i
-    (rightPaneRect.x - 10.0) (rightPaneRect.y - 10.0)   -- 'dx' 'dy'
-    10.0 10.0 -- 'dirtyX' 'dirtyY'
-               -- conjecture: position written to is (dx,dy) + (dirtyx, dirtyy)
-               -- position read from is (dirtyx, dirtyy)
-    (tileSize*3.0)  (tileSize*3.0)   -- 'dirtyW' 'dirtyH'
-
-
-
-
 draw :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
 draw t uis@(UIState {timestamp, gsTimestamp}) gs rs@(RendererState r) = do
   prevGS <- Ref.read r.gameStateId
@@ -167,7 +148,6 @@ draw t uis@(UIState {timestamp, gsTimestamp}) gs rs@(RendererState r) = do
     C.log "recache"
     cacheCenterPane rs
     Ref.write (Just gsTimestamp) r.gameStateId
-  --imageDataExperiment rs
   drawCenterPaneAnimations t uis gs rs
   Ref.write (Just t) r.prevDraw
 
@@ -235,7 +215,7 @@ rectPos {x,y} = V {x,y}
 
 animPlayerRect :: Instant -> UIState -> GameState -> Rectangle
 animPlayerRect t (UIState {playerAnim}) (GameState gs) =
-  let V{x,y} = rectPos centerPaneRect
+  let V{x,y} = round <$> rectPos centerPaneRect
                + fromGrid gs.p
                + A.resolve t playerAnim
    in { x, y, width: tileSize, height: tileSize }
