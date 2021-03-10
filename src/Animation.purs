@@ -15,6 +15,7 @@ import Animation.Core
  , Animating
  , resolve
  , prune
+ , isStatic
  )
 import Animation.Util
-  (slide, bump)
+  (slide, bump, reverseSlide)

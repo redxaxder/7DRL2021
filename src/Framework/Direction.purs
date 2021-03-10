@@ -72,16 +72,23 @@ rotate8 :: Spin -> Direction -> Direction
 rotate8 Widdershins d = fromInt 1 <> d
 rotate8 Clockwise d = fromInt 7 <> d
 
+opposite :: Direction -> Direction
+opposite d = fromInt 4 <> d
+
+dirVector :: forall a. Ring a => Direction -> Vector a
+dirVector (Direction (Zn d)) = case d of
+  0 -> V{ x: one        , y: zero }       -- right
+  1 -> V{ x: one        , y: negate one } -- upright
+  2 -> V{ x: zero       , y: negate one } -- up
+  3 -> V{ x: negate one , y: negate one } -- upleft
+  4 -> V{ x: negate one , y: zero }       -- left
+  5 -> V{ x: negate one , y: one }        -- downleft
+  6 -> V{ x: zero       , y: one }        -- down
+  _ -> V{ x: one        , y: one }        -- downright
+
+
 move :: forall a. Ring a => Direction -> Vector a -> Vector a
-move (Direction (Zn d)) (V p) = case d of
-  0 -> V p{ x = p.x + one }                  -- right
-  1 -> V p{ x = p.x + one , y = p.y - one }  -- upright
-  2 -> V p{ y = p.y - one }                  -- up
-  3 -> V p{ y = p.y - one , x = p.x - one }  -- upleft
-  4 -> V p{ x = p.x - one }                  -- left
-  5 -> V p{ x = p.x - one , y = p.y + one }  -- downleft
-  6 -> V p{ y = p.y + one }                  -- down
-  _ -> V p{ y = p.y + one , x = p.x + one }  -- downright
+move d v = v + dirVector d
 
 -- this is the direction to move p in to get q
 -- unMove p (move dir p) == Just dir

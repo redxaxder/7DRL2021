@@ -11,6 +11,18 @@ import Math (pow, sqrt)
 import Data.Typelevel.Num.Sets (class Pos, toInt)
 import Data.Typelevel.Undefined (undefined)
 
+import Data.Foldable
+  ( class Foldable
+  , foldr
+  , foldl
+  , foldMap
+  )
+
+import Data.Traversable
+  (class Traversable
+  , traverse
+  , sequence
+  )
 
 class Real a where
   toNumber :: a -> Number
@@ -38,6 +50,15 @@ derive instance newtypeVector :: Newtype (Vector a) _
 
 instance functorVector :: Functor Vector where
   map f (V v) = V {x: f v.x, y: f v.y }
+
+instance foldableVector :: Foldable Vector where
+  foldr f z (V {x,y}) = x `f` (y `f` z)
+  foldl f z (V {x,y}) = (z `f` x) `f` y
+  foldMap f (V {x,y}) = f x <> f y
+
+instance traversableVector :: Traversable Vector where
+  traverse f v = sequence (f <$> v)
+  sequence (V v) = (\x y -> V{x,y}) <$> v.x <*> v.y
 
 norm :: forall a. Real a => Vector a -> Number
 norm (V v) = sqrt (pow (toNumber v.x) 2.0 + pow (toNumber v.y) 2.0)

@@ -2,7 +2,16 @@ module UI where
 
 import Extra.Prelude
 
-import Framework.Direction (down, left, right, up, move, Direction)
+import Framework.Direction
+  (down
+  , left
+  , right
+  , up
+  , move
+  , Direction
+  , dirVector
+  , opposite
+  )
 import Framework.UI as F
 
 import Animation (Animating, DiffTime(..))
@@ -14,6 +23,7 @@ import GameState
   , getTargetAtPosition
   , Target (..)
   , EnemyId
+  , Event (..)
   )
 
 import Data.Terrain (Terrain)
@@ -21,6 +31,7 @@ import Input (Input)
 import Data.Variant as V
 
 import Data.Either (either)
+import Data.Map as Map
 import PointerEvent as Ptr
 import Data.Int as Int
 
@@ -36,11 +47,12 @@ type UI r =
   F.UIM GameState GameAction FailedAction UIState Input r
 
 newtype UIState = UIState
-  { element :: Element
-  , rightPaneTarget :: RightPane
+  { rightPaneTarget :: RightPane
   , lockedTarget :: RightPane
   , timestamp :: Instant
   , gsTimestamp :: Instant
+  , playerAnim :: Offset
+  , enemyAnim :: Map EnemyId Offset
   }
 
 data RightPane =
@@ -61,14 +73,12 @@ data PointerState = Neutral
 
 initUIState :: GameState -> UIState
 initUIState (GameState {p}) = UIState
-  { element: Element
-    { image: "player.png"
-    , pos: pure <<< toNumber <$> p
-    }
-  , rightPaneTarget: RPNoTarget
+  { rightPaneTarget: RPNoTarget
   , lockedTarget: RPNoTarget
   , timestamp: unsafeFromJust $ instant $ Milliseconds 0.0
   , gsTimestamp: unsafeFromJust $ instant $ Milliseconds 0.0
+  , playerAnim: pure zero
+  , enemyAnim: Map.empty
   }
 
 mainScreen :: GameState -> UI Unit
@@ -177,7 +187,8 @@ doAction :: GameAction -> Instant -> UIState -> GameState -> UI Unit
 doAction action time uis gs = do
   result <- F.action action
   let gs' = either (const gs) identity result
-  runUI (updateUIState time gs result uis) gs'
+      uis' = updateUIState time gs result uis
+  runUI uis' gs'
 
 updateUIState
   :: Instant
@@ -188,27 +199,47 @@ updateUIState
 updateUIState t
   (GameState {p})
   (Left (FailedAction direction))
-  (UIState uis@{element: (Element e)}) =
+  (UIState uis) =
   let bump = A.bump t (DiffTime 200.0) (move direction zero)
    in UIState $ uis
-      { element = Element $ e { pos = map (A.prune t) e.pos + bump }
-      , timestamp = t
+      { timestamp = t
+      , playerAnim = A.prune t $ uis.playerAnim + bump
       }
 updateUIState t
-  (GameState {p})
-  (Right (GameState {p:p'}))
-  (UIState uis@{element: (Element e)}) =
-  let dp = toNumber <$> p' - p
-      dpAnimation = A.slide t (DiffTime 300.0) dp
-   in UIState uis
-      { element = Element $ e { pos = map (A.prune t) e.pos + dpAnimation }
-      , timestamp = t
-      , gsTimestamp = t
-      }
+  _
+  (Right (GameState {events}))
+  (UIState uis) = foldr (uiEvent t) ui events
+  where
+    ui = UIState uis
+         { timestamp = t
+         , gsTimestamp = t
+         }
 updateUIState t
   (GameState {p})
   (Left _)
   uis = uis
+
+uiEvent :: Instant -> Event -> UIState -> UIState
+uiEvent t (PlayerMoved dir) (UIState uis) =
+  let backwards = ((*) tileSize) <$> dirVector (opposite dir)
+      -- create an animating vector that initially points from player's
+      -- current position to previous position, but once settled is
+      -- equal to zero
+      dur = DiffTime 300.0
+      fade = A.reverseSlide t dur backwards
+      --offsets = spy "o" {initial: A.resolve t fade
+                        --, final: A.resolve ( t `A.plus` dur) fade
+                        --}
+
+   in UIState uis {
+        playerAnim = A.prune t $ uis.playerAnim + fade
+      }
+uiEvent _ _ x = x
+
+
+{-
+
+-}
 
 getDir :: String -> Maybe Direction
 getDir "ArrowLeft" = Just left
@@ -217,10 +248,7 @@ getDir "ArrowDown" = Just down
 getDir "ArrowUp" = Just up
 getDir _ = Nothing
 
-data Element = Element
-  { image :: String
-  , pos :: Vector (Animating Number)
-  }
+type Offset = Animating (Vector Number)
 
 --------------------------------------------------------------------------------
 -- UI dimensions ---------------------------------------------------------------

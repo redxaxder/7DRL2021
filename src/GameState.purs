@@ -2,6 +2,7 @@ module GameState where
 
 import Extra.Prelude
 import Framework.Direction (Direction, move)
+import Data.Array as Array
 import Data.Set as Set
 import Data.Map as Map
 import Data.LinearIndex (LinearIndex (..))
@@ -32,6 +33,7 @@ newState = do
    { p: V {x: 1, y:1}
    , playerHealth: freshPlayerHealth
    , enemies: exampleEnemies
+   , events: []
    , terrain: fromMaybe (LI.fill 40 40 Floor) (freshTerrainFromString demoTerrain)
    , rng: random
    }
@@ -104,17 +106,25 @@ enemyOnSpace :: Vector Int -> Enemy -> Boolean
 enemyOnSpace v (Enemy e) = e.location == v
 
 step :: GameState -> GameAction -> Either FailedAction GameState
-step (GameState gs) a@(Move dir) =
+step gs = handleAction (clearEvents gs)
+
+handleAction :: GameState -> GameAction -> Either FailedAction GameState
+handleAction (GameState gs) a@(Move dir) =
   let p' = move dir gs.p
    in if isPassable p' (GameState gs)
-      then Right $ enemyTurn (GameState gs {p = p'})
+      then Right $ (GameState gs {p = p'})
+        # reportEvent (PlayerMoved dir)
+        # enemyTurn
       else Left (FailedAction dir)
-step (GameState gs) a@(Attack bc eid) =
+handleAction (GameState gs) a@(Attack bc eid) =
   let menemy = Map.lookup eid gs.enemies
    in case menemy of
     Nothing -> Left FailedAttack
-    Just enemy -> Right $ enemyTurn (GameState gs {enemies = Map.insert eid (injureEnemy bc enemy) gs.enemies})
-step (GameState gs) _ = Right $ GameState gs
+    Just enemy -> Right $
+      (GameState gs {enemies = Map.insert eid (injureEnemy bc enemy) gs.enemies})
+        # reportEvent (PlayerAttacked eid)
+        # enemyTurn
+handleAction (GameState gs) _ = Right $ GameState gs
 
 injureEnemy :: BoardCoord -> Enemy -> Enemy
 injureEnemy bc (Enemy e) =
@@ -138,12 +148,17 @@ isPassable t (GameState gs) =
   && t /= gs.p
 
 enemyTurn :: GameState -> GameState
-enemyTurn (GameState gs) = GameState gs {enemies = enemyMove (GameState gs) <$> gs.enemies}
+enemyTurn g@(GameState gs) = foldrWithIndex enemyMove g gs.enemies
 
-enemyMove :: GameState -> Enemy -> Enemy
-enemyMove (GameState gs) (Enemy e) =
+enemyMove :: EnemyId -> Enemy -> GameState -> GameState
+enemyMove eid (Enemy e) (GameState gs) =
   let target = e.location + (intVecToDir $ gs.p - e.location)
-   in if isPassable target (GameState gs) then Enemy e { location = e.location + (intVecToDir $ gs.p - e.location) } else Enemy e
+      moveDir = intVecToDir $ gs.p - e.location
+      newE = if isPassable target (GameState gs)
+               then Enemy e { location = e.location + moveDir }
+               else Enemy e
+   in GameState gs{ enemies = Map.insert eid newE gs.enemies }
+      # reportEvent (EnemyMoved eid moveDir)
 
 intVecToDir :: Vector Int -> Vector Int
 intVecToDir (V {x,y}) = V {x: abs' x, y: abs' y}
@@ -153,14 +168,26 @@ inWorldBounds :: Vector Int -> LinearIndex Terrain -> Boolean
 inWorldBounds (V{x,y}) (LinearIndex t) =  -- TODO: fix this
   0 <= x && x <= t.width - 1 && 0 <= y && y <= t.height - 1
 
+data Event =
+    PlayerMoved Direction
+  | EnemyMoved EnemyId (Vector Int)
+  | PlayerAttacked EnemyId
+
 newtype GameState = GameState
   { p :: Vector Int
   , playerHealth :: Health
   , enemies :: Map EnemyId Enemy
   , terrain :: LinearIndex Terrain
+  , events :: Array Event
   , rng :: R.Gen
   }
 
+clearEvents :: GameState -> GameState
+clearEvents (GameState gs) = GameState gs{events = []}
+
+reportEvent :: Event -> GameState -> GameState
+reportEvent e (GameState gs) = GameState gs
+  { events = Array.cons e gs.events }
 
 data Target =
   TargetEnemy EnemyId

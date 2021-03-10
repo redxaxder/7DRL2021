@@ -1,6 +1,8 @@
 module Graphics.Render where
 
 import Extra.Prelude
+
+import Animation as A
 import Control.Monad.Error.Class (throwError)
 import Data.Array as Array
 import Data.Map as Map
@@ -71,14 +73,84 @@ newtype RendererState = RendererState
   , gameStateId :: Ref (Maybe Instant)
   , uiStateId :: Ref (Maybe Instant)
   , prevDraw :: Ref (Maybe Instant)
+  , centerPaneCache :: Ref Canvas.ImageData
   }
+
+centerPaneImageData :: FCanvas.Vars -> Effect Canvas.ImageData
+centerPaneImageData {canvas} = do
+  ctx <- Canvas.getContext2D canvas
+  Canvas.getImageData ctx
+    centerPaneRect.x centerPaneRect.y
+    centerPaneRect.width centerPaneRect.height
+
+cacheCenterPane :: RendererState -> Effect Unit
+cacheCenterPane (RendererState {cvars, centerPaneCache}) = do
+  imageData <- centerPaneImageData cvars
+  Ref.write imageData centerPaneCache
+
+restoreCenterPane :: RendererState -> Rectangle -> Effect Unit
+restoreCenterPane (RendererState rs) rect = do
+  let {x,y} = centerPaneRect
+  ctx <- Canvas.getContext2D rs.cvars.canvas
+  id <- Ref.read rs.centerPaneCache
+  {-
+    the documentation for the function `putImageData` is all dumb and misleading
+    the emperically determined behavior in chrome and firefox is as follows:
+    it takes 6 arguments: ctx, imageData, dx, dy, dirtyX, dirtyY, dirtyW, dirtyH
+    a rectangle is copied from the imageData to the ctx
+    both rectangles have the same width and height, given by dirtyW and dirtyH
+    the position of the source rectagle in imageData is given by:
+       dirtyX, dirtyY
+    the position of the target rectangle in the ctx is given by:
+       dx + dirtyX, dy + dirtyY
+    -}
+  -- we want to read from the rect given by
+  -- rect.xy - centerPane.xy
+  -- and we want to write to the rect given by
+  --  rect.xy
+  let dx = rect.x - centerPaneRect.x
+      dy = rect.y - centerPaneRect.y
+      -- we solve for dirtyX by
+      -- rect.x = drawLocation = dx + dirtyX
+      -- dirtyX = rect.x - dx
+      --        = rect.x - (rect.x - centerPaneRect.x)
+      dirtyX = centerPaneRect.x
+      dirtyY = centerPaneRect.y
+  Canvas.putImageDataFull ctx id
+    dx dy
+    dirtyX dirtyY
+    rect.width rect.height
 
 newRendererState :: FCanvas.Vars -> Effect RendererState
 newRendererState cvars = do
   gameStateId <- Ref.new Nothing
   uiStateId <- Ref.new Nothing
   prevDraw <- Ref.new Nothing
-  pure $ RendererState { cvars, gameStateId, uiStateId, prevDraw }
+  cid <- centerPaneImageData cvars
+  centerPaneCache <- Ref.new cid
+  pure $ RendererState
+    { cvars
+    , gameStateId
+    , uiStateId
+    , prevDraw
+    , centerPaneCache
+    }
+
+imageDataExperiment :: RendererState -> Effect Unit
+imageDataExperiment (RendererState {cvars}) = do
+  ctx <- Canvas.getContext2D cvars.canvas
+  i <- Canvas.getImageData ctx
+    playerBoardRect.x playerBoardRect.y
+    playerBoardRect.width playerBoardRect.height
+  Canvas.putImageDataFull ctx i
+    (rightPaneRect.x - 10.0) (rightPaneRect.y - 10.0)   -- 'dx' 'dy'
+    10.0 10.0 -- 'dirtyX' 'dirtyY'
+               -- conjecture: position written to is (dx,dy) + (dirtyx, dirtyy)
+               -- position read from is (dirtyx, dirtyy)
+    (tileSize*3.0)  (tileSize*3.0)   -- 'dirtyW' 'dirtyH'
+
+
+
 
 draw :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
 draw t uis@(UIState {timestamp, gsTimestamp}) gs rs@(RendererState r) = do
@@ -87,14 +159,17 @@ draw t uis@(UIState {timestamp, gsTimestamp}) gs rs@(RendererState r) = do
   let uiDirty = maybe true ((>) timestamp) prevUI
       gsDirty = maybe true ((>) gsTimestamp) prevGS
   when uiDirty $ do
-    C.log "draw ui"
     drawPlayerBoard t uis gs rs
     drawRightPane t uis gs rs
     Ref.write (Just timestamp) r.uiStateId
   when gsDirty $ do
-    C.log "draw gs"
     drawCenterPane t uis gs rs
+    C.log "recache"
+    cacheCenterPane rs
     Ref.write (Just gsTimestamp) r.gameStateId
+  --imageDataExperiment rs
+  drawCenterPaneAnimations t uis gs rs
+  Ref.write (Just t) r.prevDraw
 
 drawPlayerBoard :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
 drawPlayerBoard t uis (GameState {playerHealth}) rs = do
@@ -124,10 +199,12 @@ drawCenterPane t (UIState uis) (GameState gs) vars = do
                   Floor -> "ground.png"
                   Exit -> "placeholder.png"
      in drawImage vars image { x, y, width: tileSize, height: tileSize }
+        {- player is not drawn here; it's drawn in animation call instead
   let (V playerPos) = gs.p
       px = centerPaneRect.x + toNumber playerPos.x * tileSize
       py = toNumber playerPos.y * tileSize
   drawImage vars "player.png" { x: px, y: py, width: tileSize, height: tileSize }
+  -}
   for_ gs.enemies \(Enemy e) ->
     let V p = e.location
         x = centerPaneRect.x + toNumber p.x * tileSize
@@ -135,6 +212,33 @@ drawCenterPane t (UIState uis) (GameState gs) vars = do
         image = case e.tag of
                       Roomba -> "roomba.png"
     in drawImage vars image {x,y, width: tileSize, height: tileSize }
+
+drawCenterPaneAnimations
+  :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
+drawCenterPaneAnimations
+  t
+  uis@(UIState {playerAnim})
+  gs
+  r@(RendererState rs) = do
+  prev <- Ref.read rs.prevDraw
+  -- restore the center pane at all rects that animations drew to
+  -- on the prvious draw call
+  case prev of
+       Nothing -> pure unit
+       Just tt -> restoreCenterPane r (animPlayerRect tt uis gs)
+  -- draw animations at current time
+  let apr = (animPlayerRect t uis gs)
+  drawImage r "player.png" apr
+
+rectPos :: Rectangle -> Vector Number
+rectPos {x,y} = V {x,y}
+
+animPlayerRect :: Instant -> UIState -> GameState -> Rectangle
+animPlayerRect t (UIState {playerAnim}) (GameState gs) =
+  let V{x,y} = rectPos centerPaneRect
+               + fromGrid gs.p
+               + A.resolve t playerAnim
+   in { x, y, width: tileSize, height: tileSize }
 
 drawRightPane :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
 drawRightPane t (UIState{rightPaneTarget}) (GameState gs) vars = do

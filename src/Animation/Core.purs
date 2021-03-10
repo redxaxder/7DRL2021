@@ -8,6 +8,7 @@ module Animation.Core
  , static
  , Animating
  , resolve
+ , isStatic
  , prune
  )  where
 
@@ -137,5 +138,7 @@ unsafeResolve t (Animating startTime (Animated as)) =
 resolve :: forall a. Instant -> Animating a -> a
 resolve t = unsafeResolve t <<< prune t
 
-
+-- determines whether the animation has reached the end of its animating time
+isStatic :: forall a. Instant -> Animating a -> Boolean
+isStatic t a = isJust (getStatic t $ prune t a)
 
