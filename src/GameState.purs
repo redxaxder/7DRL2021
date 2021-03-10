@@ -11,7 +11,7 @@ import Data.FoldableWithIndex (findWithIndex)
 import Data.String as String
 import Data.String.CodeUnits (toCharArray)
 import Data.Position (Position (..))
-import Data.Terrain (Terrain (..), demoTerrain, charToTerrain)
+import Data.Terrain (Terrain (..), demoTerrain, charToTerrain, flatten)
 import Data.Ord (abs)
 import Data.Board
   ( BoardCoord(..)
@@ -70,9 +70,11 @@ exampleRoombaBoard = Board
 
 
 freshTerrainFromString :: String -> Maybe (LinearIndex Terrain)
-freshTerrainFromString s = if String.length s == 40*40 then Just $ LinearIndex {width: 40, height: 40, values: t} else Nothing
+freshTerrainFromString s =
+  if String.length s' == 40*40 then Just $ LinearIndex {width: 40, height: 40, values: t} else Nothing
   where
-    t = map charToTerrain $ toCharArray s
+    t = map charToTerrain $ toCharArray s'
+    s' = flatten s
 
 freshPlayerHealth :: Health
 freshPlayerHealth = Health

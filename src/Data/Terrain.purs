@@ -1,6 +1,11 @@
 module Data.Terrain where
 
 import Extra.Prelude
+import Data.String
+  ( replaceAll
+  , Pattern(..)
+  , Replacement(..)
+  )
 
 data Terrain = Wall | Floor | Exit
 derive instance terrainEq :: Eq Terrain
@@ -9,6 +14,9 @@ charToTerrain :: Char -> Terrain
 charToTerrain '.' = Floor
 charToTerrain '>' = Exit
 charToTerrain _ = Wall
+
+flatten :: String -> String
+flatten = replaceAll (Pattern "\n") (Replacement "")
 
 demoTerrain :: String
 demoTerrain = """
@@ -49,7 +57,6 @@ demoTerrain = """
 #......................................#
 #......................................#
 #..................................>...#
-#......................................#
 #......................................#
 #......................................#
 ########################################
