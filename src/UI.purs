@@ -227,19 +227,10 @@ uiEvent t (PlayerMoved dir) (UIState uis) =
       -- equal to zero
       dur = DiffTime 300.0
       fade = A.reverseSlide t dur backwards
-      --offsets = spy "o" {initial: A.resolve t fade
-                        --, final: A.resolve ( t `A.plus` dur) fade
-                        --}
-
    in UIState uis {
         playerAnim = A.prune t $ uis.playerAnim + fade
       }
 uiEvent _ _ x = x
-
-
-{-
-
--}
 
 getDir :: String -> Maybe Direction
 getDir "ArrowLeft" = Just left

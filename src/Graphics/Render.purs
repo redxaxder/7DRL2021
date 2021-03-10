@@ -39,6 +39,7 @@ import UI
   ( UIState (..)
   , RightPane (..)
   , tileSize
+  , screen
   , centerPaneRect
   , leftPaneRect
   , playerBoardRect
@@ -47,12 +48,10 @@ import UI
   , targetBoardContainerRect
   , targetBoardRect
   )
---import Animation as A
 import Framework.Render.Core (Rectangle, Image (..))
 import Data.Position (Position (..))
 
 
-import Effect.Console as C
 
 {-
 
@@ -74,26 +73,23 @@ newtype RendererState = RendererState
   , gameStateId :: Ref (Maybe Instant)
   , uiStateId :: Ref (Maybe Instant)
   , prevDraw :: Ref (Maybe Instant)
-  , centerPaneCache :: Ref Canvas.ImageData
+  , screenCache :: Ref Canvas.ImageData
   }
 
-centerPaneImageData :: FCanvas.Vars -> Effect Canvas.ImageData
-centerPaneImageData {canvas} = do
+screenImageData :: FCanvas.Vars -> Effect Canvas.ImageData
+screenImageData {canvas} = do
   ctx <- Canvas.getContext2D canvas
-  Canvas.getImageData ctx
-    centerPaneRect.x centerPaneRect.y
-    centerPaneRect.width centerPaneRect.height
+  Canvas.getImageData ctx screen.x screen.y screen.width screen.height
 
-cacheCenterPane :: RendererState -> Effect Unit
-cacheCenterPane (RendererState {cvars, centerPaneCache}) = do
-  imageData <- centerPaneImageData cvars
-  Ref.write imageData centerPaneCache
+cacheScreen :: RendererState -> Effect Unit
+cacheScreen (RendererState {cvars, screenCache}) = do
+  imageData <- screenImageData cvars
+  Ref.write imageData screenCache
 
-restoreCenterPane :: RendererState -> Rectangle -> Effect Unit
-restoreCenterPane (RendererState rs) rect = do
-  let {x,y} = centerPaneRect
+restore :: RendererState -> Rectangle -> Effect Unit
+restore (RendererState rs) rect = do
   ctx <- Canvas.getContext2D rs.cvars.canvas
-  id <- Ref.read rs.centerPaneCache
+  id <- Ref.read rs.screenCache
   {-
     the documentation for the function `putImageData` is all dumb and misleading
     the emperically determined behavior in chrome and firefox is as follows:
@@ -105,14 +101,10 @@ restoreCenterPane (RendererState rs) rect = do
     the position of the target rectangle in the ctx is given by:
        dx + dirtyX, dy + dirtyY
     -}
-  -- we want to read from the rect given by
-  -- rect.xy - centerPane.xy
-  -- and we want to write to the rect given by
-  --  rect.xy
-  let dx = centerPaneRect.x
-      dy = centerPaneRect.y
-      dirtyX = rect.x - centerPaneRect.x
-      dirtyY = rect.y - centerPaneRect.y
+  let dx = 0.0
+      dy = 0.0
+      dirtyX = rect.x
+      dirtyY = rect.y
   Canvas.putImageDataFull ctx id
     dx dy
     dirtyX dirtyY
@@ -123,14 +115,14 @@ newRendererState cvars = do
   gameStateId <- Ref.new Nothing
   uiStateId <- Ref.new Nothing
   prevDraw <- Ref.new Nothing
-  cid <- centerPaneImageData cvars
-  centerPaneCache <- Ref.new cid
+  sid <- screenImageData cvars
+  screenCache <- Ref.new sid
   pure $ RendererState
     { cvars
     , gameStateId
     , uiStateId
     , prevDraw
-    , centerPaneCache
+    , screenCache
     }
 
 draw :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
@@ -145,9 +137,9 @@ draw t uis@(UIState {timestamp, gsTimestamp}) gs rs@(RendererState r) = do
     Ref.write (Just timestamp) r.uiStateId
   when gsDirty $ do
     drawCenterPane t uis gs rs
-    C.log "recache"
-    cacheCenterPane rs
+    cacheScreen rs
     Ref.write (Just gsTimestamp) r.gameStateId
+
   drawCenterPaneAnimations t uis gs rs
   Ref.write (Just t) r.prevDraw
 
@@ -205,7 +197,9 @@ drawCenterPaneAnimations
   -- on the prvious draw call
   case prev of
        Nothing -> pure unit
-       Just tt -> restoreCenterPane r (animPlayerRect tt uis gs)
+       Just tt -> 
+         let {x,y,width,height} = (animPlayerRect tt uis gs)
+          in restore r {x: x, y, width, height}
   -- draw animations at current time
   let apr = (animPlayerRect t uis gs)
   drawImage r "player.png" apr
@@ -215,7 +209,8 @@ rectPos {x,y} = V {x,y}
 
 animPlayerRect :: Instant -> UIState -> GameState -> Rectangle
 animPlayerRect t (UIState {playerAnim}) (GameState gs) =
-  let V{x,y} = round <$> rectPos centerPaneRect
+  let V{x,y} = round <$>
+               rectPos centerPaneRect
                + fromGrid gs.p
                + A.resolve t playerAnim
    in { x, y, width: tileSize, height: tileSize }
