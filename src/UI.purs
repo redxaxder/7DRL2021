@@ -446,7 +446,8 @@ getAudio :: UIState -> FA.AudioSignal
 getAudio u@(UIState uis) =
   { samples, timestamp: Just uis.timestamp }
   where
-    samples = uis.audioQueue <#> \{ file, time } ->
+    samples = Array.filter (\{delay} -> delay >= 0.0) $
+              uis.audioQueue <#> \{ file, time } ->
                 { audio: resolveAudio file u
                 , delay: un Milliseconds (unInstant time)
                        - un Milliseconds (unInstant uis.timestamp)

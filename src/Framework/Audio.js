@@ -10,7 +10,10 @@ exports.loadAudio = function (path) {
 exports.playAudio = function (delay) {
   return function (audio) {
     return function () {
-      audio.play()
+      setTimeout(
+        function() { audio.cloneNode().play() }
+        , delay
+      )
     };
   };
 };
