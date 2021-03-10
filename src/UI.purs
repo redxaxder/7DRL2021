@@ -2,6 +2,15 @@ module UI where
 
 import Extra.Prelude
 
+import Data.Either (either)
+import Data.Variant as V
+import Data.Array as Array
+import Data.Map as Map
+import Data.Int as Int
+import Data.DateTime.Instant (instant, unInstant)
+import Data.Time.Duration (Milliseconds (..))
+import Control.Alt ((<|>))
+
 import Framework.Direction
   (down
   , left
@@ -13,9 +22,13 @@ import Framework.Direction
   , opposite
   )
 import Framework.UI as F
+import Framework.Audio as FA
+import Framework.Render.Core (Rectangle)
 
 import Animation (Animating, DiffTime(..))
 import Animation as A
+import Data.Board (BoardCoord (..))
+import Data.Terrain (Terrain)
 import GameState
   ( GameState (..)
   , GameAction (..)
@@ -26,22 +39,10 @@ import GameState
   , Event (..)
   )
 
-import Data.Terrain (Terrain)
 import Input (Input)
-import Data.Variant as V
-
-import Data.Either (either)
-import Data.Map as Map
 import PointerEvent as Ptr
-import Data.Int as Int
 
-import Data.Board (BoardCoord (..))
 
-import Framework.Render.Core (Rectangle)
-
-import Data.DateTime.Instant (instant)
-import Data.Time.Duration (Milliseconds (..))
-import Control.Alt ((<|>))
 
 type UI r =
   F.UIM GameState GameAction FailedAction UIState Input r
@@ -53,6 +54,8 @@ newtype UIState = UIState
   , gsTimestamp :: Instant
   , playerAnim :: Offset
   , enemyAnim :: Map EnemyId Offset
+  , audioData :: AudioData
+  , audioQueue :: AudioQueue
   }
 
 data RightPane =
@@ -71,18 +74,19 @@ data PointerState = Neutral
     }
   -}
 
-initUIState :: GameState -> UIState
-initUIState (GameState {p}) = UIState
-  { rightPaneTarget: RPNoTarget
-  , lockedTarget: RPNoTarget
-  , timestamp: unsafeFromJust $ instant $ Milliseconds 0.0
-  , gsTimestamp: unsafeFromJust $ instant $ Milliseconds 0.0
-  , playerAnim: pure zero
-  , enemyAnim: Map.empty
-  }
-
-mainScreen :: GameState -> UI Unit
-mainScreen gs = runUI (initUIState gs) gs
+initUIState :: GameState -> Effect UIState
+initUIState (GameState {p}) = do
+  audioData <- loadAudioData audioPaths
+  pure $ UIState
+    { rightPaneTarget: RPNoTarget
+    , lockedTarget: RPNoTarget
+    , timestamp: unsafeFromJust $ instant $ Milliseconds 0.0
+    , gsTimestamp: unsafeFromJust $ instant $ Milliseconds 0.0
+    , playerAnim: pure zero
+    , enemyAnim: Map.empty
+    , audioData
+    , audioQueue: []
+    }
 
 {-
 getDragOffset ::
@@ -247,8 +251,9 @@ uiEvent t (EnemyMoved eid vec) (UIState uis) =
   UIState uis {
     enemyAnim = Map.insert eid anim cleanedAnim
   }
-  
-uiEvent _ _ x = x
+uiEvent t (PlayerAttacked _) uis = uis
+  # enqueueAudio t "pew1.mp3"
+uiEvent t _ uis = uis
 
 getDir :: String -> Maybe Direction
 getDir "ArrowLeft" = Just left
@@ -404,6 +409,43 @@ locateTargetBoard p = do
          }
 
 --------------------------------------------------------------------------------
+-- Audio stuff -----------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+type AudioData = Map String FA.Audio
+
+loadAudioData :: Array String -> Effect (Map String FA.Audio)
+loadAudioData paths = do
+  audios <- traverse FA.loadAudio paths
+  pure $ Map.fromFoldable (Array.zip paths audios)
+
+resolveAudio :: String -> UIState -> FA.Audio
+resolveAudio path (UIState {audioData}) = unsafeFromJust (Map.lookup path audioData)
+
+type AudioQueue = Array { file :: String, time :: Instant }
+
+emptyAudioQueue :: AudioQueue
+emptyAudioQueue = []
+
+clearAudio :: UIState -> UIState
+clearAudio (UIState u) = UIState u { audioQueue = emptyAudioQueue }
+
+enqueueAudio :: Instant -> String -> UIState -> UIState
+enqueueAudio time file (UIState u) = UIState u
+  { audioQueue = Array.cons {time, file} u.audioQueue }
+
+getAudio :: UIState -> FA.AudioSignal
+getAudio u@(UIState uis) =
+  { samples, timestamp: Just uis.timestamp }
+  where
+    samples = uis.audioQueue <#> \{ file, time } ->
+                { audio: resolveAudio file u
+                , delay: un Milliseconds (unInstant time)
+                       - un Milliseconds (unInstant uis.timestamp)
+                }
+
+
+--------------------------------------------------------------------------------
 -- Image paths -----------------------------------------------------------------
 --------------------------------------------------------------------------------
 
@@ -422,4 +464,9 @@ imagePaths =
   , "Heart4.png"
   , "Heart4injured.png"
   , "placeholder.png"
+  ]
+
+audioPaths :: Array String
+audioPaths =
+  [ "pew1.mp3"
   ]
