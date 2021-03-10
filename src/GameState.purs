@@ -5,6 +5,7 @@ import Framework.Direction (Direction, move)
 import Data.Array as Array
 import Data.Set as Set
 import Data.Map as Map
+import Data.Tuple as Tuple
 import Data.LinearIndex (LinearIndex (..))
 import Data.LinearIndex as LI
 import Data.FoldableWithIndex (findWithIndex)
@@ -67,7 +68,6 @@ exampleRoombaBoard = Board
      ]
   , injuries: Set.empty
   }
-
 
 freshTerrainFromString :: String -> Maybe (LinearIndex Terrain)
 freshTerrainFromString s =
@@ -150,17 +150,41 @@ isPassable t (GameState gs) =
   && t /= gs.p
 
 enemyTurn :: GameState -> GameState
-enemyTurn g@(GameState gs) = foldrWithIndex enemyMove g gs.enemies
+enemyTurn g@(GameState gs) = foldrWithIndex enemyAction g gs.enemies
 
-enemyMove :: EnemyId -> Enemy -> GameState -> GameState
-enemyMove eid (Enemy e) (GameState gs) =
+enemyAction :: EnemyId -> Enemy -> GameState -> GameState
+enemyAction eid (Enemy e) (GameState gs) =
   let target = e.location + (intVecToDir $ gs.p - e.location)
       moveDir = intVecToDir $ gs.p - e.location
       newE = if isPassable target (GameState gs)
                then Enemy e { location = e.location + moveDir }
                else Enemy e
-   in GameState gs{ enemies = Map.insert eid newE gs.enemies }
+   in if target == gs.p
+      then enemyAttack (GameState gs) eid
+      else enemyMove (GameState gs) eid newE moveDir
+
+enemyMove :: GameState -> EnemyId -> Enemy -> Vector Int -> GameState
+enemyMove (GameState gs) eid newE moveDir = GameState gs{ enemies = Map.insert eid newE gs.enemies }
       # reportEvent (EnemyMoved eid moveDir)
+
+enemyAttack :: GameState -> EnemyId -> GameState
+enemyAttack (GameState gs) eid =
+  let
+    (Health h) = gs.playerHealth
+    attack = randomSpace h.board (GameState gs)
+    newHealth = injure (Tuple.fst attack) gs.playerHealth
+  in GameState gs { playerHealth = newHealth, rng = Tuple.snd attack }
+     # reportEvent (EnemyAttacked eid $ Tuple.fst attack)
+
+randomSpace :: Board -> GameState -> Tuple BoardCoord R.Gen
+randomSpace (Board b) (GameState gs) =
+  let 
+    xRand :: { result :: Int, nextGen :: R.Gen }
+    xRand = R.runRandom (R.intRange 0 7) gs.rng
+    yRand :: { result :: Int, nextGen :: R.Gen }
+    yRand = R.runRandom (R.intRange 0 7) xRand.nextGen
+    attackCoord = BoardCoord (V { x: xRand.result, y: yRand.result })
+  in Tuple attackCoord yRand.nextGen
 
 intVecToDir :: Vector Int -> Vector Int
 intVecToDir (V {x,y}) = V {x: abs' x, y: abs' y}
@@ -174,6 +198,7 @@ data Event =
     PlayerMoved Direction
   | EnemyMoved EnemyId (Vector Int)
   | PlayerAttacked EnemyId
+  | EnemyAttacked EnemyId BoardCoord
 
 newtype GameState = GameState
   { p :: Vector Int
