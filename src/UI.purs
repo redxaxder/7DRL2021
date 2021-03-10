@@ -230,6 +230,24 @@ uiEvent t (PlayerMoved dir) (UIState uis) =
    in UIState uis {
         playerAnim = A.prune t $ uis.playerAnim + fade
       }
+uiEvent t (EnemyMoved eid vec) (UIState uis) =
+  let cleanedAnim = uis.enemyAnim
+        -- prune all ongoing animations of extra stuff
+        # map (A.prune t)
+        -- remove all completed animations
+        -- (they all complete to zero-vectors)
+        # Map.filter (not <<< A.isStatic t)
+      dur = DiffTime 300.0
+      realVec = ((*) tileSize) <<< toNumber <$> vec
+      fade = A.reverseSlide t dur (negate realVec)
+      anim = case Map.lookup eid cleanedAnim of
+                  Nothing -> fade
+                  Just a -> a + fade
+   in
+  UIState uis {
+    enemyAnim = Map.insert eid anim cleanedAnim
+  }
+  
 uiEvent _ _ x = x
 
 getDir :: String -> Maybe Direction

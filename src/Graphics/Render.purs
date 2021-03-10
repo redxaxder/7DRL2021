@@ -33,6 +33,7 @@ import GameState
   , Health (..)
   , Enemy (..)
   , EnemyTag (..)
+  , EnemyId
   , enemyName
   )
 import UI
@@ -171,38 +172,32 @@ drawCenterPane t (UIState uis) (GameState gs) vars = do
                   Floor -> "ground.png"
                   Exit -> "placeholder.png"
      in drawImage vars image { x, y, width: tileSize, height: tileSize }
-        {- player is not drawn here; it's drawn in animation call instead
-  let (V playerPos) = gs.p
-      px = centerPaneRect.x + toNumber playerPos.x * tileSize
-      py = toNumber playerPos.y * tileSize
-  drawImage vars "player.png" { x: px, y: py, width: tileSize, height: tileSize }
-  -}
-  for_ gs.enemies \(Enemy e) ->
-    let V p = e.location
-        x = centerPaneRect.x + toNumber p.x * tileSize
-        y = toNumber p.y * tileSize
-        image = case e.tag of
-                      Roomba -> "roomba.png"
-    in drawImage vars image {x,y, width: tileSize, height: tileSize }
 
 drawCenterPaneAnimations
   :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
 drawCenterPaneAnimations
   t
   uis@(UIState {playerAnim})
-  gs
+  gs@(GameState g)
   r@(RendererState rs) = do
   prev <- Ref.read rs.prevDraw
   -- restore the center pane at all rects that animations drew to
   -- on the prvious draw call
   case prev of
        Nothing -> pure unit
-       Just tt -> 
-         let {x,y,width,height} = (animPlayerRect tt uis gs)
-          in restore r {x: x, y, width, height}
+       Just tt -> do
+          restore r (animPlayerRect tt uis gs)
+          forWithIndex_ g.enemies \eid nme ->
+            restore r (animEnemyRect tt eid nme uis gs)
   -- draw animations at current time
-  let apr = (animPlayerRect t uis gs)
-  drawImage r "player.png" apr
+  drawImage r "player.png" (animPlayerRect t uis gs)
+  forWithIndex_ g.enemies \eid nme ->
+    let rect = animEnemyRect t eid nme uis gs
+        image = enemyImage nme
+     in drawImage r image rect
+
+enemyImage :: Enemy -> String
+enemyImage (Enemy {tag: Roomba}) = "roomba.png"
 
 rectPos :: Rectangle -> Vector Number
 rectPos {x,y} = V {x,y}
@@ -213,6 +208,17 @@ animPlayerRect t (UIState {playerAnim}) (GameState gs) =
                rectPos centerPaneRect
                + fromGrid gs.p
                + A.resolve t playerAnim
+   in { x, y, width: tileSize, height: tileSize }
+
+
+animEnemyRect :: Instant -> EnemyId -> Enemy -> UIState -> GameState -> Rectangle
+animEnemyRect t eid (Enemy {location}) (UIState {enemyAnim}) (GameState gs) =
+  let shift = fromMaybe zero $
+              A.resolve t <$> Map.lookup eid enemyAnim
+      V{x,y} = round <$>
+                rectPos centerPaneRect
+                + fromGrid location
+                + shift
    in { x, y, width: tileSize, height: tileSize }
 
 drawRightPane :: Instant -> UIState -> GameState -> RendererState -> Effect Unit

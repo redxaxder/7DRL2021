@@ -34,26 +34,11 @@ reverseSlide startTime duration v = traverse f v
   where
   ease :: Number -> Number
   ease = E.ease $
-           ( E.h01
-      --     + E.mult 2.0 E.h10
-       --    - E.mult 1.0 E.h11
-           )
-  f x = A.animate startTime $
-    A.singleton
-      duration
-      \(DiffTime elapsed) -> 
-         (ease $ 1.0 - (elapsed / un DiffTime duration)) * x
-  {-
-  traverse f v
-  where
-  ease :: Number -> Number
-  ease = E.ease $
            ( E.h00
-           - E.mult 2.0 E.h11
-           + E.mult 1.0 E.h10
+           + E.mult 2.0 E.h11
+           - E.mult 1.0 E.h10
            )
   f x = A.animate startTime $
     A.singleton
       duration
       \(DiffTime elapsed) -> (ease $ elapsed / un DiffTime duration) * x
--}
