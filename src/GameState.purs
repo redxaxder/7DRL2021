@@ -72,8 +72,7 @@ exampleRoombaBoard = Board
   }
 
 exampleOrgans :: Map (Vector Int) Organ
-exampleOrgans = Map.singleton (Vec 4 4) playerHpOrgan
-
+exampleOrgans = Map.singleton (vec 4 4) playerHpOrgan
 
 freshTerrainFromString :: String -> Maybe (LinearIndex Terrain)
 freshTerrainFromString s =
@@ -221,7 +220,7 @@ newtype GameState = GameState
   , enemies :: Map EnemyId Enemy
   , terrain :: LinearIndex Terrain
   , level :: Level
-  , availableOrgans :: exampleOrgans
+  , availableOrgans :: Map (Vector Int) Organ
   , events :: Array Event
   , rng :: R.Gen
   }
