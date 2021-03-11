@@ -20,25 +20,31 @@ import Control.Alt ((<|>))
 
 type Input = { time :: Instant, value :: InputValue }
 
-type InputValue = V.Variant
-   ( keyDown :: KeyDown
-   , pointerDown :: PointerEvent
-   , pointerUp :: PointerEvent
-   , pointerMove :: PointerEvent
-   )
+data InputValue =
+    KeyDown KeyDown
+  | PointerDown Ptr
+  | PointerUp Ptr
+  | PointerMove Ptr
 
 type KeyDown = String
-
 
 repeatDelay :: Milliseconds
 repeatDelay = Milliseconds 200.0
 
+type Ptr = { location :: Vector Number, pointerId :: Number }
+
+unpack :: PointerEvent -> Ptr
+unpack p =
+  { location: V { x: Ptr.offsetX p, y: Ptr.offsetY p }
+  , pointerId: Ptr.pointerId p
+  }
+
 getInputs :: CanvasElement -> Event Input
 getInputs c = withTime $
-  (V.inj (SProxy :: SProxy "keyDown") <$> keyDown c)
-  <|> (V.inj (SProxy :: SProxy "pointerDown") <$> pointerDown c)
-  <|> (V.inj (SProxy :: SProxy "pointerUp") <$> pointerUp c)
-  <|> (V.inj (SProxy :: SProxy "pointerMove") <$> pointerMove c)
+  (KeyDown <$> keyDown c)
+  <|> (PointerDown <<< unpack <$> pointerDown c)
+  <|> (PointerUp <<< unpack <$> pointerUp c)
+  <|> (PointerMove <<< unpack <$> pointerMove c)
 
 keyDown :: CanvasElement -> Event KeyDown
 keyDown = debounce repeatDelay <<< mkEventListener "keydown" (KB.fromEvent >>> map KB.code)

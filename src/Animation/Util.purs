@@ -35,7 +35,7 @@ reverseSlide startTime duration v = traverse f v
   ease :: Number -> Number
   ease = E.ease $
            ( E.h00
-           + E.mult 2.0 E.h11
+           + E.mult 1.0 E.h11
            - E.mult 1.0 E.h10
            )
   f x = A.animate startTime $

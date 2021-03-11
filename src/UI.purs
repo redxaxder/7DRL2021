@@ -3,7 +3,6 @@ module UI where
 import Extra.Prelude
 
 import Data.Either (either)
-import Data.Variant as V
 import Data.Array as Array
 import Data.Map as Map
 import Data.Int as Int
@@ -27,19 +26,20 @@ import Framework.Render.Core (Rectangle)
 
 import Animation (Animating, DiffTime(..))
 import Animation as A
-import Data.Board (BoardCoord (..))
+import Data.Board (BoardCoord)
 import Data.Terrain (Terrain)
 import GameState
   ( GameState (..)
   , GameAction (..)
   , FailedAction (..)
   , getTargetAtPosition
+  , isSurgeryLevel
   , Target (..)
   , EnemyId
   , Event (..)
   )
 
-import Input (Input)
+import Input (Input, InputValue (..))
 import PointerEvent as Ptr
 
 
@@ -56,6 +56,7 @@ newtype UIState = UIState
   , enemyAnim :: Map EnemyId Offset
   , audioData :: AudioData
   , audioQueue :: AudioQueue
+  , draggingOrgan :: Maybe { location :: Vector Int, offset :: Vector Number }
   }
 
 data RightPane =
@@ -83,6 +84,7 @@ initUIState (GameState {p}) = do
     , timestamp: unsafeFromJust $ instant $ Milliseconds 0.0
     , gsTimestamp: unsafeFromJust $ instant $ Milliseconds 0.0
     , playerAnim: pure zero
+    , draggingOrgan: Nothing
     , enemyAnim: Map.empty
     , audioData
     , audioQueue: []
@@ -115,35 +117,61 @@ getDragOffset conf uis@(UIState baseUI) gs = do
 -}
 
 runUI :: UIState -> GameState -> UI Unit
-runUI currentUI@(UIState u) gs = do
-  let default _ = runUI currentUI gs
-  { time, value } <- F.input currentUI
-  V.default (default unit)
-    # V.onMatch
-      { keyDown: \key -> case getDir key of
-           Nothing -> default unit
-           Just d -> doAction (Move d) time currentUI gs
-      , pointerDown: \ptr ->
-          let ptrLoc = V { x: Ptr.offsetX ptr, y: Ptr.offsetY ptr }
-           in case locate ptrLoc of
-                Other -> default unit
-                CenterPane p ->
-                   let newUI = lockTarget time p currentUI gs
-                    in runUI newUI gs
-                TargetBoard p ->
-                   tryAttack time p currentUI gs
-      , pointerMove: \ptr ->
-          let ptrLoc = V { x: Ptr.offsetX ptr, y: Ptr.offsetY ptr }
-           in case locate ptrLoc of
-                CenterPane p ->
-                  let newUI = viewTarget time p currentUI gs
-                   in runUI newUI gs
-                _ -> if u.lockedTarget /= u.rightPaneTarget
-                       then let newUI = toLockedTarget time currentUI
-                            in runUI newUI gs
-                       else default unit
-      }
-    $ value
+runUI uis gs = case isSurgeryLevel gs of
+  true -> surgeryUI uis gs
+  false -> mapUI uis gs
+
+mapUI :: UIState -> GameState -> UI Unit
+mapUI uis@(UIState u) gs@(GameState g) = do
+  { time, value } <- F.input uis
+  case value of
+       KeyDown key -> case getDir key of
+           Nothing -> runUI uis gs
+           Just d -> doAction (Move d) time uis gs
+       PointerDown {location} ->
+         case locate location of
+              CenterPane p ->
+                let newUI = lockTarget time p uis gs
+                 in runUI newUI gs
+              TargetBoard p -> tryAttack time p uis gs
+              _ -> runUI uis gs
+       PointerMove {location} ->
+         case locate location of
+              CenterPane p ->
+                let newUI = viewTarget time p uis gs
+                 in runUI newUI gs
+              _otherLocations -> if u.lockedTarget /= u.rightPaneTarget
+                           then let newUI = toLockedTarget time uis
+                                 in runUI newUI gs
+                                    else runUI uis gs
+       _otherEvents -> runUI uis gs
+
+surgeryUI :: UIState -> GameState -> UI Unit
+surgeryUI uis gs@(GameState g) = do
+  { time, value } <- F.input uis
+  case value of
+    PointerDown {location, pointerId} ->
+      case locate location of
+           CenterPane p -> todo
+             -- check gamestate's organ map to see if an organ has been clicked
+             --let
+             -- if so, enter drag mode holding that organ
+           PlayerBoard p -> todo
+             -- confirm destroy organ
+           _ -> runUI uis gs
+    _otherEvents -> runUI uis gs
+
+dragOrgan :: Number -> Vector Int -> Vector Number -> UIState -> GameState -> UI Unit
+dragOrgan ptrId target initialClickPos uis gs = do
+  { time, value } <- F.input uis
+  case value of
+       PointerMove ptr -> todo
+       PointerUp {pointerId, location} ->
+         if pointerId == ptrId
+           then let offsetVector = location - initialClickPos
+                 in todo
+           else dragOrgan ptrId target initialClickPos uis gs
+       _ -> dragOrgan ptrId target initialClickPos uis gs
 
 rpTarget :: Vector Int -> GameState -> RightPane
 rpTarget pos gs = case getTargetAtPosition pos gs of
@@ -185,7 +213,7 @@ tryAttack :: Instant -> Vector Int -> UIState -> GameState -> UI Unit
 tryAttack t pos uis gs =
   case getTarget uis of
        Nothing -> runUI uis gs
-       Just tid -> doAction (Attack (BoardCoord pos) tid) t uis gs
+       Just tid -> doAction (Attack pos tid) t uis gs
 
 doAction :: GameAction -> Instant -> UIState -> GameState -> UI Unit
 doAction action time uis gs = do
@@ -271,6 +299,16 @@ getDir "ArrowUp" = Just up
 getDir _ = Nothing
 
 type Offset = Animating (Vector Number)
+
+--------------------------------------------------------------------------------
+-- Dirty flagging --------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+-- For each part of the UI, we keep track of the timestamp of the most recent
+-- change to the non-animated part of it
+
+--TODO
+
 
 --------------------------------------------------------------------------------
 -- UI dimensions ---------------------------------------------------------------
@@ -384,6 +422,7 @@ tileSize = 10.0
 data UILocation =
   TargetBoard (Vector Int)
   | CenterPane (Vector Int)
+  | PlayerBoard (Vector Int)
   | Other
 
 -- If the position is inside the rect, returns

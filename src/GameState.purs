@@ -8,6 +8,8 @@ import Data.Map as Map
 import Data.Tuple as Tuple
 import Data.LinearIndex (LinearIndex (..))
 import Data.LinearIndex as LI
+import Data.RevMap (RevMap)
+import Data.RevMap as RevMap
 import Data.FoldableWithIndex (findWithIndex)
 import Data.String as String
 import Data.String.CodeUnits (toCharArray)
@@ -24,6 +26,9 @@ import Data.Board
   , hpCount
   , injureBoard
   , getClue
+  , OrganBag
+  , emptyBag
+  , insertOrgan
   )
 import Random.Gen as R
 
@@ -35,7 +40,7 @@ newState = do
    , playerHealth: freshPlayerHealth
    , enemies: exampleEnemies
    , level: Regular 1
-   , availableOrgans: Map.empty
+   , availableOrgans: exampleOrgans
    , events: []
    , terrain: fromMaybe (LI.fill 40 40 Floor) (freshTerrainFromString demoTerrain)
    , rng: random
@@ -59,20 +64,21 @@ mkHealth board = Health
   }
 
 exampleInjuries :: Array BoardCoord
-exampleInjuries = BoardCoord <$> [ vec 1 1, vec 2 3, vec 4 4 ]
+exampleInjuries = [ vec 1 1, vec 2 3, vec 4 4 ]
 
 exampleRoombaBoard :: Board
 exampleRoombaBoard = Board
-  { organs:
-     [ Tuple hpOrgan1 (BoardCoord (vec 2 2))
-     , Tuple hpOrgan1 (BoardCoord (vec 2 5))
-     , Tuple hpOrgan1 (BoardCoord (vec 4 0))
-     ]
+  { organs: emptyBag
+     # insertOrgan (vec 2 2) hpOrgan1
+     # insertOrgan (vec 2 5) hpOrgan1
+     # insertOrgan (vec 4 0) hpOrgan1
   , injuries: Set.empty
   }
 
-exampleOrgans :: Map (Vector Int) Organ
-exampleOrgans = Map.singleton (vec 4 4) playerHpOrgan
+exampleOrgans :: OrganBag
+exampleOrgans = emptyBag
+  # insertOrgan (vec 4 4) playerHpOrgan
+  # insertOrgan (vec 6 8) playerHpOrgan
 
 freshTerrainFromString :: String -> Maybe (LinearIndex Terrain)
 freshTerrainFromString s =
@@ -89,11 +95,10 @@ freshPlayerHealth = Health
 
 freshPlayerBoard :: Board
 freshPlayerBoard = Board
-  { organs:
-      [ Tuple playerHpOrgan (BoardCoord (vec 1 1))
-      , Tuple playerHpOrgan (BoardCoord (vec 3 1))
-      , Tuple playerHpOrgan (BoardCoord (vec 2 3))
-      ]
+  { organs: emptyBag
+      # insertOrgan (vec 1 1) playerHpOrgan
+      # insertOrgan (vec 3 1) playerHpOrgan
+      # insertOrgan (vec 2 3) playerHpOrgan
   , injuries: Set.empty
   }
 
@@ -147,7 +152,7 @@ injureEnemyMulti :: Array BoardCoord -> Enemy -> Enemy
 injureEnemyMulti bcs e = foldr injureEnemy e bcs
 
 injure :: BoardCoord -> Health -> Health
-injure (BoardCoord v) (Health h) =
+injure v (Health h) =
   let board = injureBoard v h.board
    in Health { hpCount: hpCount board, board }
 
@@ -197,7 +202,7 @@ randomSpace (Board b) (GameState gs) =
     xRand = R.runRandom (R.intRange 0 7) gs.rng
     yRand :: { result :: Int, nextGen :: R.Gen }
     yRand = R.runRandom (R.intRange 0 7) xRand.nextGen
-    attackCoord = BoardCoord (V { x: xRand.result, y: yRand.result })
+    attackCoord = V { x: xRand.result, y: yRand.result }
   in Tuple attackCoord yRand.nextGen
 
 intVecToDir :: Vector Int -> Vector Int
@@ -220,7 +225,7 @@ newtype GameState = GameState
   , enemies :: Map EnemyId Enemy
   , terrain :: LinearIndex Terrain
   , level :: Level
-  , availableOrgans :: Map (Vector Int) Organ
+  , availableOrgans :: OrganBag
   , events :: Array Event
   , rng :: R.Gen
   }

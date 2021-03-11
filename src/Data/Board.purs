@@ -3,6 +3,8 @@ module Data.Board where
 import Extra.Prelude
 import Data.Array as Array
 import Data.Tuple as Tuple
+import Data.RevMap (RevMap)
+import Data.RevMap as RevMap
 import Data.Set as Set
 import Framework.Direction (move, directions8)
 
@@ -11,36 +13,71 @@ data OrganType = Hp | PlayerHeartLarge
 
 data Organ = Organ OrganSize OrganType
 
-newtype BoardCoord = BoardCoord (Vector Int)
+derive instance eqOrganSize :: Eq OrganSize
+derive instance ordOrganSize :: Ord OrganSize
+derive instance eqOrganType :: Eq OrganType
+derive instance ordOrganType :: Ord OrganType
+derive instance eqOrgan :: Eq Organ
+derive instance ordOrgan :: Ord Organ
+
+type BoardCoord = Vector Int
 
 type InternalOrgan = Tuple Organ BoardCoord
+
+type OrganBag = RevMap (Vector Int) InternalOrgan
+
+emptyBag :: OrganBag
+emptyBag = RevMap.empty
+
+insertOrgan :: BoardCoord -> Organ -> OrganBag -> OrganBag
+insertOrgan pos organ@(Organ (OrganSize w h) _) bag =
+  let io = Tuple organ pos
+      coveredPositions = do
+         x <- Array.range 0 w
+         y <- Array.range 0 h
+         pure (pos + V{x,y})
+   in foldl (\bag v -> RevMap.insert v io bag) bag coveredPositions
+
+removeOrganAt :: BoardCoord -> OrganBag -> OrganBag
+removeOrganAt p bag = foldl (\b x -> RevMap.delete x b) bag $
+  organExtent p bag
+
+organAt :: BoardCoord -> OrganBag -> Maybe InternalOrgan
+organAt = RevMap.lookup
+
+-- checks position for an organ and returns all the spaces it occupies
+-- if there is no organ there, the array is empty
+organExtent :: BoardCoord -> OrganBag -> Array BoardCoord
+organExtent v orgs = fromMaybe [] do
+  organ <- RevMap.lookup v orgs
+  RevMap.lookupReverse organ orgs
+
+organArray :: OrganBag -> Array InternalOrgan
+organArray = RevMap.uniqueValues
+
 newtype Board = Board
-  { organs :: Array (Tuple Organ BoardCoord)
+  { organs :: OrganBag -- Array (Tuple Organ BoardCoord)
   -- , organIndex :: Map BoardCoord Organ
   , injuries :: Set BoardCoord
   }
 
-derive instance ordBoardCoord :: Ord BoardCoord
-derive instance eqBoardCoord :: Eq BoardCoord
-
 derive instance newtypeBoard :: Newtype Board _
 
 injureBoard :: Vector Int -> Board -> Board
-injureBoard v (Board b) = Board b {injuries = Set.insert (BoardCoord v) b.injuries}
+injureBoard v (Board b) = Board b {injuries = Set.insert v b.injuries}
 
 isValidBoardCoord :: BoardCoord -> Boolean
-isValidBoardCoord (BoardCoord (V{x,y})) = x >= 0
+isValidBoardCoord (V{x,y}) = x >= 0
   && x <= 6
   && y >= 0
   && y <= 6
 
 getOrganAtPosition :: Board -> BoardCoord -> Maybe Organ
-getOrganAtPosition (Board {organs}) p =
-  Tuple.fst <$> Array.find (isInside p) organs
+getOrganAtPosition (Board {organs}) p = Tuple.fst <$> organAt p organs
 
 isInside :: BoardCoord -> Tuple Organ BoardCoord -> Boolean
-isInside (BoardCoord (V{x: px,y: py}))
-         (Tuple (Organ (OrganSize w h) _) (BoardCoord (V{x,y}))) =
+isInside (V{x: px,y: py})
+         (Tuple (Organ (OrganSize w h) _) (V{x,y})) =
   x <= px
   && px < x + w
   && y <= py
@@ -51,9 +88,9 @@ isHpOrgan (Organ _ Hp) = true
 isHpOrgan (Organ _ PlayerHeartLarge) = true
 
 getClue :: BoardCoord -> Board -> Clue
-getClue (BoardCoord p) b =
+getClue p b =
   let neighbors = Array.filter isValidBoardCoord
-        (map BoardCoord $ move <$> directions8 <*> pure p)
+        (move <$> directions8 <*> pure p)
       hpOrgans = Array.length $ Array.filter isHpOrgan
         (Array.mapMaybe (getOrganAtPosition b) neighbors)
    in if hpOrgans > 0
@@ -70,17 +107,17 @@ getOrgans :: Board ->
   { intact :: Array InternalOrgan, injured :: Array InternalOrgan }
 getOrgans (Board board) = {intact, injured}
   where
-  noInjuries (Tuple (Organ (OrganSize w h) _) (BoardCoord (V {x, y}))) =
+  noInjuries (Tuple (Organ (OrganSize w h) _) (V {x, y})) =
     let xmin = x
         xmax = w + x - 1
         ymin = y
         ymax = y + h - 1
-    in not $ any (\(BoardCoord (V i)) ->
+    in not $ any (\(V i) ->
        i.x >= xmin
        && i.x <= xmax
        && i.y >= ymin
        && i.y <= ymax) board.injuries
-  {yes: intact, no: injured} = Array.partition noInjuries board.organs
+  {yes: intact, no: injured} = Array.partition noInjuries (organArray board.organs)
 
 data Clue =
   HpClue Int -- Health only

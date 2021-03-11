@@ -14,13 +14,13 @@ import Graphics.Canvas as Canvas
 import Data.Set as Set
 import Data.Board
   ( Board(..)
-  , BoardCoord (..)
   , Clue (..)
   , Organ (..)
   , OrganType (..)
   , OrganSize (..)
   , getOrganAtPosition
   , getOrgans
+  , organArray
   )
 import Data.Terrain
   ( Terrain(..)
@@ -35,6 +35,7 @@ import GameState
   , EnemyTag (..)
   , EnemyId
   , enemyName
+  , isSurgeryLevel
   )
 import UI
   ( UIState (..)
@@ -128,20 +129,14 @@ newRendererState cvars = do
 
 draw :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
 draw t uis@(UIState {timestamp, gsTimestamp}) gs rs@(RendererState r) = do
-  prevGS <- Ref.read r.gameStateId
   prevUI <- Ref.read r.uiStateId
   let uiDirty = maybe true ((>) timestamp) prevUI
-      gsDirty = maybe true ((>) gsTimestamp) prevGS
+  drawCenterPane t uis gs rs
   when uiDirty $ do
     drawPlayerBoard t uis gs rs
     drawRightPane t uis gs rs
     Ref.write (Just timestamp) r.uiStateId
-  when gsDirty $ do
-    drawCenterPane t uis gs rs
-    cacheScreen rs
-    Ref.write (Just gsTimestamp) r.gameStateId
 
-  drawCenterPaneAnimations t uis gs rs
   Ref.write (Just t) r.prevDraw
 
 drawPlayerBoard :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
@@ -154,15 +149,38 @@ drawPlayerBoard t uis (GameState {playerHealth}) rs = do
   drawText rs (show playerHp) (V{ x:10.0, y:0.0 })
   drawImage rs "heart.png" { x:0.0, y: 0.0, width: tileSize, height: tileSize }
   drawBoardBase rs playerBoard playerBoardRect
-  for_ playerOrgans.intact \(Tuple organ (BoardCoord bc)) ->
+  for_ playerOrgans.intact \(Tuple organ bc) ->
     drawOrgan true rs organ (fromGrid bc + anchor)
-  for_ playerOrgans.injured \(Tuple organ (BoardCoord bc)) ->
+  for_ playerOrgans.injured \(Tuple organ bc) ->
     drawOrgan false rs organ (fromGrid bc + anchor)
 
-
 drawCenterPane :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
-drawCenterPane t (UIState uis) (GameState gs) vars = do
-  clear vars centerPaneRect
+drawCenterPane
+  t
+  uis@(UIState {gsTimestamp})
+  gs@(GameState {availableOrgans})
+  rs@(RendererState r) = do
+  prevGS <- Ref.read r.gameStateId
+  let gsDirty = maybe true ((>) gsTimestamp) prevGS
+  case isSurgeryLevel gs of
+       false -> do
+         when gsDirty $ do
+           centerPaneMap t uis gs rs
+           cacheScreen rs
+           Ref.write (Just gsTimestamp) r.gameStateId
+         drawCenterPaneAnimations t uis gs rs
+       true -> do
+         when gsDirty do
+           clear rs centerPaneRect
+           for_ (organArray availableOrgans) \(Tuple organ position) ->
+             drawOrgan true rs organ (rectPos centerPaneRect + fromGrid position)
+           cacheScreen rs
+           --TODO: organ offset when being held
+           --TODO: surgery completion button
+
+centerPaneMap :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
+centerPaneMap t (UIState uis) (GameState gs) rs = do
+  clear rs centerPaneRect
   forWithIndex_ gs.terrain \pos terrain ->
      let Position p = pos
          x = centerPaneRect.x + toNumber p.x * tileSize
@@ -171,7 +189,7 @@ drawCenterPane t (UIState uis) (GameState gs) vars = do
                   Wall -> "wall.png"
                   Floor -> "ground.png"
                   Exit -> "placeholder.png"
-     in drawImage vars image { x, y, width: tileSize, height: tileSize }
+     in drawImage rs image { x, y, width: tileSize, height: tileSize }
 
 drawCenterPaneAnimations
   :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
@@ -254,7 +272,7 @@ drawBoardBase :: RendererState -> Board -> Rectangle -> Effect Unit
 drawBoardBase vars (Board {injuries}) {x,y} =
   for_ (Array.range 0 5) \px ->
     for_ (Array.range 0 5) \py ->
-      let buttonImage = if Set.member (BoardCoord (V{x: px, y:py})) injuries
+      let buttonImage = if Set.member (V{x: px, y:py}) injuries
             then "ButtonPushed.png"
             else "ButtonUnpushed.png"
        in drawImage vars buttonImage
@@ -268,11 +286,11 @@ drawEnemyBoardDetails :: RendererState -> Enemy -> Effect Unit
 drawEnemyBoardDetails rs (Enemy e) = do
   let Health {board} = e.health
       anchor = let {x,y} = targetBoardRect in V{x,y}
-  for_ (un Board board).injuries \p@(BoardCoord v) ->
+  for_ (un Board board).injuries \v ->
     let drawPos = fromGrid v + anchor
-     in case getOrganAtPosition board p of
+     in case getOrganAtPosition board v of
           Just organ -> drawInjury rs organ drawPos
-          Nothing -> case Map.lookup p e.clueCache of
+          Nothing -> case Map.lookup v e.clueCache of
                           Just clue -> drawClue rs clue drawPos
                           Nothing -> pure unit
 
