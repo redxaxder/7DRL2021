@@ -1,6 +1,7 @@
 module Random
   ( module Random.Gen
   , module Random.Blob
+  , module Random.Util
   )
   where
 
@@ -29,3 +30,5 @@ import Random.Blob
   ( Ints (..)
   , Doubles (..)
   )
+
+import Random.Util (shuffle)
