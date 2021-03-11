@@ -34,6 +34,8 @@ newState = do
    { p: V {x: 1, y:1}
    , playerHealth: freshPlayerHealth
    , enemies: exampleEnemies
+   , level: Regular 1
+   , availableOrgans: Map.empty
    , events: []
    , terrain: fromMaybe (LI.fill 40 40 Floor) (freshTerrainFromString demoTerrain)
    , rng: random
@@ -68,6 +70,10 @@ exampleRoombaBoard = Board
      ]
   , injuries: Set.empty
   }
+
+exampleOrgans :: Map (Vector Int) Organ
+exampleOrgans = Map.singleton (Vec 4 4) playerHpOrgan
+
 
 freshTerrainFromString :: String -> Maybe (LinearIndex Terrain)
 freshTerrainFromString s =
@@ -111,13 +117,17 @@ step :: GameState -> GameAction -> Either FailedAction GameState
 step gs = handleAction (clearEvents gs)
 
 handleAction :: GameState -> GameAction -> Either FailedAction GameState
-handleAction (GameState gs) a@(Move dir) =
+handleAction g@(GameState gs) a@(Move dir) =
   let p' = move dir gs.p
-   in if isPassable p' (GameState gs)
-      then Right $ (GameState gs {p = p'})
-        # reportEvent (PlayerMoved dir)
-        # enemyTurn
-      else Left (FailedAction dir)
+   in case isPassable p' g, isExit p' g of
+      false, _ -> Left (FailedAction dir)
+      true,false -> Right $ (GameState gs {p = p'})
+                      # reportEvent (PlayerMoved dir)
+                      # enemyTurn
+      true,true -> Right $ (GameState gs {p = p'})
+                      # goToNextLevel
+                      # reportEvent (PlayerMoved dir)
+
 handleAction (GameState gs) a@(Attack bc eid) =
   let menemy = Map.lookup eid gs.enemies
    in case menemy of
@@ -148,6 +158,11 @@ isPassable t (GameState gs) =
   && not (isWall t gs.terrain)
   && not (any (enemyOnSpace t) gs.enemies)
   && t /= gs.p
+
+isExit :: Vector Int -> GameState -> Boolean
+isExit v (GameState gs) = case LI.index gs.terrain (fromVector v) of
+  Just Exit -> true
+  _ -> false
 
 enemyTurn :: GameState -> GameState
 enemyTurn g@(GameState gs) = foldrWithIndex enemyAction g gs.enemies
@@ -205,9 +220,24 @@ newtype GameState = GameState
   , playerHealth :: Health
   , enemies :: Map EnemyId Enemy
   , terrain :: LinearIndex Terrain
+  , level :: Level
+  , availableOrgans :: exampleOrgans
   , events :: Array Event
   , rng :: R.Gen
   }
+
+data Level = Regular Int | Surgery Int
+
+isSurgeryLevel :: GameState -> Boolean
+isSurgeryLevel (GameState {level: Surgery _}) = true
+isSurgeryLevel _ = false
+
+nextLevel :: Level -> Level
+nextLevel (Regular i) = Surgery i
+nextLevel (Surgery i) = Regular (i+1)
+
+goToNextLevel :: GameState -> GameState
+goToNextLevel (GameState gs) = GameState gs { level = nextLevel gs.level }
 
 clearEvents :: GameState -> GameState
 clearEvents (GameState gs) = GameState gs{events = []}
@@ -244,6 +274,7 @@ data GameAction =
   | SelectWeapon WeaponId
   | InstallOrgan Organ BoardCoord
   | RemoveOrgan Int
+  | FinishSurgery
 
 data FailedAction =
   FailedAction Direction
