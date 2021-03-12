@@ -48,9 +48,6 @@ canInsertOrgan pos organ@(Organ (OrganSize w h) _) bag =
       lookups = coveredPositions <#> \p -> RevMap.lookup p bag
    in not $ any isJust lookups
 
-
-
-
 removeOrganAt :: BoardCoord -> OrganBag -> OrganBag
 removeOrganAt p bag = foldl (\b x -> RevMap.delete x b) bag $
   organExtent p bag
@@ -69,8 +66,7 @@ organArray :: OrganBag -> Array InternalOrgan
 organArray = RevMap.uniqueValues
 
 newtype Board = Board
-  { organs :: OrganBag -- Array (Tuple Organ BoardCoord)
-  -- , organIndex :: Map BoardCoord Organ
+  { organs :: OrganBag
   , injuries :: Set BoardCoord
   }
 
