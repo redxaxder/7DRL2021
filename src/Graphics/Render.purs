@@ -6,9 +6,12 @@ import Animation as A
 import Control.Monad.Error.Class (throwError)
 import Data.Array as Array
 import Data.Map as Map
+import Data.DateTime.Instant (unInstant)
+import Data.Time.Duration (Milliseconds (..))
+import Data.Int as Int
 import Effect.Exception (error)
 import Effect.Ref as Ref
-import Math (round)
+import Math (round, sin)
 import Effect.Ref (Ref)
 import Graphics.Canvas as Canvas
 import Data.Set as Set
@@ -78,9 +81,13 @@ newtype RendererState = RendererState
   , uiStateId :: Ref (Maybe Instant)
   , prevDraw :: Ref (Maybe Instant)
   , prevDrag :: Ref (Maybe OrganDrag)
+  , toRestore :: Ref (Array Rectangle)
   , screenCache :: Ref Canvas.ImageData
   }
 
+--------------------------------------------------------------------------------
+-- Screen caching and restoring ------------------------------------------------
+--------------------------------------------------------------------------------
 screenImageData :: FCanvas.Vars -> Effect Canvas.ImageData
 screenImageData {canvas} = do
   ctx <- Canvas.getContext2D canvas
@@ -115,12 +122,35 @@ restore (RendererState rs) rect = do
     dirtyX dirtyY
     rect.width rect.height
 
+restoreAll :: RendererState -> Effect Unit
+restoreAll rs@(RendererState {toRestore}) = do
+  rects <- Ref.read toRestore
+  for_ rects (restore rs)
+  Ref.write [] toRestore
+
+queueRestore :: RendererState -> Rectangle -> Effect Unit
+queueRestore (RendererState {toRestore}) rect =
+  Ref.modify_ (Array.cons rect) toRestore
+
+drawImageTemp :: RendererState -> String -> Rectangle -> Effect Unit
+drawImageTemp rs img rect = do
+  drawImage rs img rect
+  queueRestore rs rect
+
+fillRectTemp :: RendererState -> Rectangle -> Color -> Effect Unit
+fillRectTemp rs rect color = do
+  fillRect rs rect color
+  queueRestore rs rect{width = rect.width +1.0, height = rect.height + 1.0 }
+
+--------------------------------------------------------------------------------
+
 newRendererState :: FCanvas.Vars -> Effect RendererState
 newRendererState cvars = do
   gameStateId <- Ref.new Nothing
   uiStateId <- Ref.new Nothing
   prevDraw <- Ref.new Nothing
   prevDrag <- Ref.new Nothing
+  toRestore <- Ref.new []
   sid <- screenImageData cvars
   screenCache <- Ref.new sid
   pure $ RendererState
@@ -129,19 +159,22 @@ newRendererState cvars = do
     , uiStateId
     , prevDraw
     , prevDrag
+    , toRestore
     , screenCache
     }
 
 draw :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
 draw t uis@(UIState {timestamp, gsTimestamp}) gs rs@(RendererState r) = do
   prevUI <- Ref.read r.uiStateId
+  restoreAll rs
   let uiDirty = maybe true ((>) timestamp) prevUI
   drawCenterPane t uis gs rs
   when uiDirty $ do
     drawPlayerBoard t uis gs rs
     drawRightPane t uis gs rs
     Ref.write (Just timestamp) r.uiStateId
-
+  drawHighlights t uis rs
+  drawDraggedOrgan uis gs rs
   Ref.write (Just t) r.prevDraw
 
 drawPlayerBoard :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
@@ -180,7 +213,6 @@ drawCenterPane
            for_ (organArray availableOrgans) \(Tuple organ position) ->
              drawOrgan true rs organ (rectPos centerPaneRect + fromGrid position)
            cacheScreen rs
-         drawDraggedOrgan uis gs rs
   Ref.write (Just gsTimestamp) r.gameStateId
 
 centerPaneMap :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
@@ -203,53 +235,40 @@ drawCenterPaneAnimations
   uis@(UIState {playerAnim})
   gs@(GameState g)
   r@(RendererState rs) = do
-  prev <- Ref.read rs.prevDraw
-  -- restore the center pane at all rects that animations drew to
-  -- on the prvious draw call
-  case prev of
-       Nothing -> pure unit
-       Just tt -> do
-          restore r (animPlayerRect tt uis gs)
-          forWithIndex_ g.enemies \eid nme ->
-            restore r (animEnemyRect tt eid nme uis gs)
-  -- draw animations at current time
-  drawImage r "player.png" (animPlayerRect t uis gs)
+  drawImageTemp r "player.png" (animPlayerRect t uis gs)
   forWithIndex_ g.enemies \eid nme ->
     let rect = animEnemyRect t eid nme uis gs
         image = enemyImage nme
-     in drawImage r image rect
+     in drawImageTemp r image rect
 
 drawDraggedOrgan :: UIState -> GameState -> RendererState -> Effect Unit
 drawDraggedOrgan (UIState{draggingOrgan}) gs rs@(RendererState r) = do
   case draggingOrgan of
        Nothing -> pure unit
        Just dragging@{organ: Tuple organ@(Organ (OrganSize w h) otype) p, offset } -> do
-         -- we're dragging an organ!
          let originalPos@(V{x,y}) = rectPos centerPaneRect + fromGrid p
              width = toNumber w * tileSize
              height = toNumber h * tileSize
-         -- first, copy from the backup to the last place we drew the organ
-         Ref.read r.prevDrag >>=
-           case _ of
-                Nothing -> pure unit
-                Just prev ->
-                  let (V v) = originalPos + prev.offset
-                   in restore rs {x: v.x, y: v.y, width, height}
-         -- next, plaster over that organ's original position
-         clear rs ({x,y,width,height})
-         -- finally, draw the moved organ
+         -- plaster over that organ's original position
+         fillRectTemp rs {x,y,width,height} (Color "black")
+         -- draw the moved organ
          let drawTo@(V dt) = originalPos + offset
-         drawOrgan true rs organ drawTo
-         -- and remember where we drew it
-         let prevDrag =
-               { organ: dragging.organ
-               , offset
-               }
-         Ref.write (Just prevDrag) r.prevDrag
+             (V v) = offset
+         drawOrganTemp true rs organ drawTo
+         --TODO: surgery completion button
 
-           --TODO: organ offset when being held
-           --TODO: surgery completion button
+drawHighlights :: Instant -> UIState -> RendererState -> Effect Unit
+drawHighlights t (UIState {highlights}) rs = do
+  let color = getHighlightColor t
+  for_ highlights \rect -> fillRectTemp rs rect color
 
+getHighlightColor :: Instant -> Color
+getHighlightColor t = Color $ "#ffffff" <> opacity
+  where
+  ms = t # unInstant # un Milliseconds
+  opacity = sin (ms / 100.0) * 30.0 + 120.0
+    # Int.floor
+    # Int.toStringAs Int.hexadecimal
 
 enemyImage :: Enemy -> String
 enemyImage (Enemy {tag: Roomba}) = "roomba.png"
@@ -300,9 +319,12 @@ drawRightPane t (UIState{rightPaneTarget}) (GameState gs) vars = do
        _ -> pure unit
 
 clear :: RendererState -> Rectangle -> Effect Unit
-clear (RendererState { cvars: c }) rect = do
-  ctx <- Canvas.getContext2D c.canvas
-  Canvas.setFillStyle ctx "black"
+clear rs rect = fillRect rs rect (Color "black")
+
+fillRect :: RendererState -> Rectangle -> Color -> Effect Unit
+fillRect (RendererState { cvars }) rect (Color c) = do
+  ctx <- Canvas.getContext2D cvars.canvas
+  Canvas.setFillStyle ctx c
   Canvas.fillRect ctx rect
 
 drawBoardBase :: RendererState -> Board -> Rectangle -> Effect Unit
@@ -334,7 +356,6 @@ drawEnemyBoardDetails rs (Enemy e) = do
 fromGrid :: Vector Int -> Vector Number
 fromGrid p = p <#> \x -> toNumber x * tileSize
 
-
 organImage :: OrganType -> Boolean -> String
 organImage Hp true  = "heart.png"
 organImage Hp false = "injuredheart.png"
@@ -343,8 +364,13 @@ organImage PlayerHeartLarge false = "Heart4injured.png"
 
 drawOrgan :: Boolean -> RendererState -> Organ -> Vector Number -> Effect Unit
 drawOrgan isIntact rs (Organ (OrganSize w h) organType) (V{x,y}) =
-  drawImage rs (organImage organType isIntact)
-    { x,y, width: tileSize * toNumber w, height: tileSize * toNumber h }
+  drawImage rs (organImage organType isIntact) { x,y, width: tileSize * toNumber w, height: tileSize * toNumber h }
+
+drawOrganTemp ::
+  Boolean -> RendererState -> Organ -> Vector Number -> Effect Unit
+drawOrganTemp isIntact rs (Organ (OrganSize w h) organType) (V{x,y}) =
+    drawImageTemp rs (organImage organType isIntact)
+      { x,y, width: tileSize * toNumber w, height: tileSize * toNumber h }
 
 drawInjury :: RendererState -> Organ -> Vector Number -> Effect Unit
 drawInjury = drawOrgan false

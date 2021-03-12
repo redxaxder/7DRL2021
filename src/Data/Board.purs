@@ -31,21 +31,15 @@ emptyBag :: OrganBag
 emptyBag = RevMap.empty
 
 insertOrgan :: BoardCoord -> Organ -> OrganBag -> OrganBag
-insertOrgan pos organ@(Organ (OrganSize w h) _) bag =
+insertOrgan pos organ bag =
   let io = Tuple organ pos
-      coveredPositions = do
-         x <- Array.range 0 (w - 1)
-         y <- Array.range 0 (h - 1)
-         pure (pos + V{x,y})
-   in foldl (\bag v -> RevMap.insert v io bag) bag coveredPositions
+      coveredPositions = extent organ pos
+   in foldl (\b v -> RevMap.insert v io b) bag coveredPositions
 
 --we can only insert an organ here if it doesnt overlap any existing ones
 canInsertOrgan :: BoardCoord -> Organ -> OrganBag -> Boolean
 canInsertOrgan pos organ@(Organ (OrganSize w h) _) bag =
-  let coveredPositions = do
-         x <- Array.range 0 (w - 1)
-         y <- Array.range 0 (h - 1)
-         pure (pos + V{x,y})
+  let coveredPositions = extent organ pos
       lookups = coveredPositions <#> \p -> RevMap.lookup p bag
    in not $ any isJust lookups
 
@@ -63,6 +57,13 @@ organExtent v orgs = fromMaybe [] do
   organ <- RevMap.lookup v orgs
   RevMap.lookupReverse organ orgs
 
+extent :: Organ -> BoardCoord -> Array BoardCoord
+extent (Organ (OrganSize w h) _) pos = do
+  x <- Array.range 0 (w - 1)
+  y <- Array.range 0 (h - 1)
+  pure (pos + V{x,y})
+
+
 organArray :: OrganBag -> Array InternalOrgan
 organArray = RevMap.uniqueValues
 
@@ -78,9 +79,9 @@ injureBoard v (Board b) = Board b {injuries = Set.insert v b.injuries}
 
 isValidBoardCoord :: BoardCoord -> Boolean
 isValidBoardCoord (V{x,y}) = x >= 0
-  && x <= 6
+  && x <= 5
   && y >= 0
-  && y <= 6
+  && y <= 5
 
 getOrganAtPosition :: Board -> BoardCoord -> Maybe Organ
 getOrganAtPosition (Board {organs}) p = Tuple.fst <$> organAt p organs

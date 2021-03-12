@@ -29,9 +29,11 @@ import Animation as A
 import Data.Board
   ( InternalOrgan
   , Board (..)
+  , extent
   , Health (..)
   , organAt
   , canInsertOrgan
+  , isValidBoardCoord
   )
 import Data.Terrain (Terrain)
 import Data.Tuple as Tuple
@@ -58,6 +60,7 @@ newtype UIState = UIState
   , gsTimestamp :: Instant
   , playerAnim :: Offset
   , enemyAnim :: Map EnemyId Offset
+  , highlights :: Array Rectangle
   , audioData :: AudioData
   , audioQueue :: AudioQueue
   , draggingOrgan :: Maybe OrganDrag
@@ -97,38 +100,15 @@ initUIState (GameState {p}) = do
     , enemyAnim: Map.empty
     , audioData
     , audioQueue: []
+    , highlights: []
     }
 
-{-
-getDragOffset ::
-   { pointerId :: Number
-   , start :: Vector Number
-   , current :: Vector Number
-   } -> UIState -> GameState -> UI (Maybe (Vector Number))
-getDragOffset conf uis@(UIState baseUI) gs = do
-  let default = getDragOffset conf uis gs
-  { time, value } <- F.input (UIState baseUI{ pointerState = Dragging conf })
-  V.default default
-    # V.onMatch
-      { pointerDown: \_ -> pure Nothing
-      , pointerMove: \ptr ->
-          let ptrLoc = V { x: Ptr.offsetX ptr, y: Ptr.offsetY ptr }
-           in if Ptr.pointerId ptr == conf.pointerId
-              then getDragOffset conf{current = ptrLoc} uis gs
-              else default
-      , pointerUp: \ptr ->
-          let ptrLoc = V { x: Ptr.offsetX ptr, y: Ptr.offsetY ptr }
-           in if Ptr.pointerId ptr == conf.pointerId
-              then pure $ Just (ptrLoc - conf.start)
-              else default
-      }
-    $ value
--}
-
 runUI :: UIState -> GameState -> UI Unit
-runUI uis gs = case isSurgeryLevel gs of
-  true -> surgeryUI uis gs
-  false -> mapUI uis gs
+runUI uis gs =
+  let u = clearHighlights uis in
+  case isSurgeryLevel gs of
+  true -> surgeryUI u gs
+  false -> mapUI u gs
 
 mapUI :: UIState -> GameState -> UI Unit
 mapUI uis@(UIState u) gs@(GameState g) = do
@@ -155,6 +135,10 @@ mapUI uis@(UIState u) gs@(GameState g) = do
                                     else runUI uis gs
        _otherEvents -> runUI uis gs
 
+--------------------------------------------------------------------------------
+-- Surgery ---------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
 surgeryUI :: UIState -> GameState -> UI Unit
 surgeryUI uis gs@(GameState g) = do
   { time, value } <- F.input uis
@@ -173,16 +157,7 @@ surgeryUI uis gs@(GameState g) = do
                     --we've finished dragging, but where did we end up?
                     case locate (location + dragOffset) of
                          PlayerBoard pb ->
-                           let bag = g.playerHealth
-                                 # un Health
-                                 # _.board
-                                 # un Board
-                                 # _.organs
-                               o = Tuple.fst organ
-                            in if canInsertOrgan pb o bag
-                             then audioAction "Organ1.mp3"
-                                     (InstallOrgan o pb) t newUIS gs
-                             else runUI newUIS gs
+                           tryInstallOrgan time pb organ newUIS gs
                          _ -> runUI newUIS gs
            PlayerBoard p ->
              let b = (g.playerHealth # un Health # _.board # un Board # _.organs)
@@ -194,17 +169,6 @@ surgeryUI uis gs@(GameState g) = do
                             (setDirtyUI time uis) gs
            _ -> runUI uis gs
     _otherEvents -> runUI uis gs
-
-setDirtyGS :: Instant -> UIState -> UIState
-setDirtyGS t (UIState u) = UIState u {gsTimestamp = t}
-
-setDirtyUI :: Instant -> UIState -> UIState
-setDirtyUI t (UIState u) = UIState u {timestamp = t}
-
-setDirtyAll :: Instant -> UIState -> UIState
-setDirtyAll t uis = uis
-  # setDirtyUI t
-  # setDirtyGS t
 
 dragOrgan
   :: Instant
@@ -227,16 +191,35 @@ dragOrgan t ptrId organ initialClickPos uis gs = uis
   stop (UIState u) = UIState u{draggingOrgan = Nothing}
   go u =  do
     { time, value } <- F.input u
+    let nextU = clearHighlights u
     case value of
          PointerMove {pointerId, location} ->
              let offset = location - initialClickPos
-                   in go (setOffset offset u)
+                 (Tuple o pos) = organ
+                 newUIS = fromMaybe nextU $ do
+                         l <- organDragLoc pos offset
+                         guard (canInstallOrgan l organ gs)
+                         pure $ nextU # highlights
+                                (PlayerBoard <$> extent o l)
+              in go (setOffset offset newUIS)
 
          PointerUp {pointerId, location} ->
            if pointerId == ptrId
              then pure $ {time, v: location - initialClickPos}
              else pure $ {time, v: zero}
-         _ -> go u
+         _ -> go nextU
+
+organDragLoc :: Vector Int -> Vector Number -> Maybe (Vector Int)
+organDragLoc startPos offset =
+  let start = fromGrid startPos + V{x:tileSize / 2.0,y:tileSize / 2.0} + rectPos centerPaneRect
+      end = start + offset
+   in case locate end of
+      PlayerBoard pb -> Just pb
+      _ -> Nothing
+
+--------------------------------------------------------------------------------
+-- Target Management -----------------------------------------------------------
+--------------------------------------------------------------------------------
 
 rpTarget :: Vector Int -> GameState -> RightPane
 rpTarget pos gs = case getTargetAtPosition pos gs of
@@ -274,11 +257,9 @@ getTarget (UIState {rightPaneTarget}) =
        RPEnemy eid -> Just eid
        _ -> Nothing
 
-tryAttack :: Instant -> Vector Int -> UIState -> GameState -> UI Unit
-tryAttack t pos uis gs =
-  case getTarget uis of
-       Nothing -> runUI uis gs
-       Just tid -> doAction (Attack pos tid) t uis gs
+--------------------------------------------------------------------------------
+-- Actions ---------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 doAction :: GameAction -> Instant -> UIState -> GameState -> UI Unit
 doAction action time uis gs = do
@@ -286,6 +267,47 @@ doAction action time uis gs = do
   let gs' = either (const gs) identity result
       uis' = nextUI time gs result uis
   runUI uis' gs'
+
+tryAttack :: Instant -> Vector Int -> UIState -> GameState -> UI Unit
+tryAttack t pos uis gs =
+  case getTarget uis of
+       Nothing -> runUI uis gs
+       Just tid -> doAction (Attack pos tid) t uis gs
+
+canInstallOrgan :: Vector Int -> InternalOrgan -> GameState -> Boolean
+canInstallOrgan pos organ (GameState g) =
+ let bag = g.playerHealth
+       # un Health
+       # _.board
+       # un Board
+       # _.organs
+     o = Tuple.fst organ
+  in canInsertOrgan pos o bag && all isValidBoardCoord (extent o pos)
+
+tryInstallOrgan :: Instant -> Vector Int -> InternalOrgan
+    -> UIState -> GameState -> UI Unit
+tryInstallOrgan t pos organ uis gs@(GameState g) =
+  if canInstallOrgan pos organ gs
+     then audioAction "Organ1.mp3" (InstallOrgan organ pos) t
+            (setDirtyUI t uis) gs
+     else runUI uis gs
+
+tryRemoveOrgan :: Instant -> Vector Int -> UIState -> GameState -> UI Unit
+tryRemoveOrgan t p uis gs@(GameState g) =
+  let b = (g.playerHealth # un Health # _.board # un Board # _.organs)
+   in case organAt p b of
+        Nothing -> runUI uis gs
+        Just (Tuple _ pos) ->
+          audioAction "Organ3.mp3" (RemoveOrgan pos) t
+            (setDirtyUI t uis) gs
+
+{-
+removeOrgan :: Instant -> Vector Int -> UIState -> GameState -> UI Unit
+removeOrgan
+                          audioAction "Organ3.mp3" (RemoveOrgan pos) time
+                            (setDirtyUI time uis) gs
+
+-}
 
 audioAction :: String -> GameAction -> Instant -> UIState -> GameState -> UI Unit
 audioAction audio action time uis gs = do
@@ -295,6 +317,18 @@ audioAction audio action time uis gs = do
              # enqueueAudio time audio
   runUI uis' gs'
 
+--------------------------------------------------------------------------------
+
+setDirtyGS :: Instant -> UIState -> UIState
+setDirtyGS t (UIState u) = UIState u {gsTimestamp = t}
+
+setDirtyUI :: Instant -> UIState -> UIState
+setDirtyUI t (UIState u) = UIState u {timestamp = t}
+
+setDirtyAll :: Instant -> UIState -> UIState
+setDirtyAll t uis = uis
+  # setDirtyUI t
+  # setDirtyGS t
 
 nextUI
   :: Instant
@@ -568,6 +602,38 @@ getAudio u@(UIState uis) =
                        - un Milliseconds (unInstant uis.timestamp)
                 }
 
+--------------------------------------------------------------------------------
+-- Highlights ------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+rectPos :: Rectangle -> Vector Number
+rectPos {x,y} = V {x,y}
+
+fromGrid :: Vector Int -> Vector Number
+fromGrid p = p <#> \x -> toNumber x * tileSize
+
+tileRect :: Vector Number -> Rectangle
+tileRect (V{x,y}) = {x,y,width:tileSize,height:tileSize}
+
+toRect :: UILocation -> Maybe Rectangle
+toRect (TargetBoard p) = Just $ tileRect $ fromGrid p + rectPos targetBoardRect
+toRect (CenterPane p) = Just $ tileRect $ fromGrid p + rectPos centerPaneRect
+toRect (PlayerBoard p) = Just $ tileRect $ fromGrid p + rectPos playerBoardRect
+toRect Other = Nothing
+
+clearHighlights :: UIState -> UIState
+clearHighlights (UIState u) = UIState u{highlights = []}
+
+highlight :: UILocation -> UIState -> UIState
+highlight p uis = fromMaybe uis do
+  rect <- toRect p
+  pure $ hightlightRect rect uis
+
+highlights :: Array UILocation -> UIState -> UIState
+highlights ps uis = foldl (\u p -> highlight p u) uis ps
+
+hightlightRect :: Rectangle -> UIState -> UIState
+hightlightRect r (UIState u) = UIState u{highlights = Array.cons r u.highlights}
 
 --------------------------------------------------------------------------------
 -- Image paths -----------------------------------------------------------------

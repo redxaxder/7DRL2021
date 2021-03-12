@@ -3,6 +3,7 @@ module Mapgen where
 import Extra.Prelude
 
 import Data.Array as Array
+import Data.Map as Map
 import Random (Random)
 import Random as R
 import Data.Traversable (scanl)
@@ -11,6 +12,7 @@ import Data.FunctorWithIndex (mapWithIndex)
 import Control.Monad.Rec.Class (Step (..), tailRecM)
 
 import Partial.Unsafe (unsafePartial)
+import Control.Alt ((<|>))
 
 type Block =
   { x:: Int, y:: Int, width:: Int, height:: Int }
@@ -153,9 +155,15 @@ data Overlap = SubsetLT
 derive instance eqOverlap :: Eq Overlap
 
 overlap :: Interval -> Interval -> Overlap
-overlap a b =
-  if a == b then Equal else
-  todo
+overlap a b = fromMaybe Disjoint $
+  equal <|> subsetLT <|> subsetGT <|> partial
+  where
+  m x bool = if bool then Just x else Nothing
+  equal = a == b # m Equal
+  subsetLT = a.start >= b.start && end a <= end b # m SubsetLT
+  subsetGT = a.start <= b.start && end a >= end b # m SubsetLT
+  partial = a.start <= end b && b.start <= end a # m
+             (Partial $ 1 + min (end a - b.start) (end b - a.start))
 
 disjoint :: Interval -> Interval -> Boolean
 disjoint a b = overlap a b == Disjoint
@@ -182,6 +190,25 @@ blockAdjacency blocks = do
   guard $ a /= b
   guard $ areAdjacent (unsafeIndex blocks a) (unsafeIndex blocks b)
   pure {a,b}
+
+type AdjMap =
+  { edges :: Map Int (Array Int)
+  , blocks :: Array Block
+  }
+
+-- labelled
+type L b = { value :: b, label :: Int }
+
+mkAdjMap :: Array {a::Int,b::Int} -> Map Int (Array Int)
+mkAdjMap xs = foldl (\m {a,b} -> Map.insertWith (<>) a [b] m) Map.empty xs
+
+adjacentBlocks :: L Block -> AdjMap -> Array (L Block)
+adjacentBlocks {label} {edges, blocks} =
+  let ls = unsafeFromJust (Map.lookup label edges)
+      bs = ls <#> \l -> unsafeIndex blocks l
+   in Array.zipWith (\l b -> {label:l,value:b}) ls bs
+
+
 
 
 

@@ -16,13 +16,11 @@ import Data.Ord (abs)
 import Data.Board
   ( BoardCoord
   , Board(..)
-  , Clue
   , Organ(..)
+  , InternalOrgan
   , OrganSize(..)
   , OrganType(..)
   , hpCount
-  , injureBoard
-  , getClue
   , OrganBag
   , emptyBag
   , insertOrgan
@@ -47,7 +45,7 @@ newState = do
    { p: startingPos
    , playerHealth: freshPlayerHealth
    , enemies: exampleEnemies
-   , level: Regular 1
+   , level: Surgery 1
    , availableOrgans: exampleOrgans
    , events: []
    , terrain: fromMaybe (LI.fill 40 40 Floor) (freshTerrainFromString demoTerrain)
@@ -254,7 +252,7 @@ data GameAction =
   Move Direction
   | Attack BoardCoord EnemyId
   | SelectWeapon WeaponId
-  | InstallOrgan Organ BoardCoord
+  | InstallOrgan InternalOrgan BoardCoord
   | RemoveOrgan BoardCoord
   | FinishSurgery
 
