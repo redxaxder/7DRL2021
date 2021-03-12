@@ -164,6 +164,7 @@ handleAction g a@(InstallOrgan organ bc) =
                # installOrgan bc (Tuple.fst organ)
                # removeAvailableOrgan organ
     else Left FailedInstall
+handleAction g FinishSurgery = Right $ goToNextLevel g
 handleAction (GameState gs) _ = Right $ GameState gs
 
 handleEnemyInjury :: GameState -> Enemy -> EnemyId -> BoardCoord -> GameState

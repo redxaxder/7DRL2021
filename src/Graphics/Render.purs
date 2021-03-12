@@ -205,6 +205,14 @@ drawCenterPane
            clear rs centerPaneRect
            for_ (organArray availableOrgans) \(Tuple organ position) ->
              drawOrgan true rs organ (rectPos centerPaneRect + fromGrid position)
+           let x = centerPaneRect.x
+               y = centerPaneRect.y + centerPaneRect.height - tileSize * 4.0
+           drawText rs "Drag parts into your health area to install them"
+             (V{x,y})
+           drawText rs "Click on parts to remove them"
+             (V{x,y: y + tileSize})
+           drawText rs "Press any key to go to the next level"
+             (V{x,y: y + tileSize * 2.0})
            cacheScreen rs
   Ref.write (Just gsTimestamp) r.gameStateId
 

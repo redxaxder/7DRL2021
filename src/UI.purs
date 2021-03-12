@@ -168,6 +168,7 @@ surgeryUI uis gs@(GameState g) = do
                           audioAction "Organ3.mp3" (RemoveOrgan pos) time
                             (setDirtyUI time uis) gs
            _ -> runUI uis gs
+    KeyDown _ -> doAction FinishSurgery time (setDirtyAll time uis) gs
     _otherEvents -> runUI uis gs
 
 dragOrgan
