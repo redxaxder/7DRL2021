@@ -157,7 +157,7 @@ surgeryUI uis gs@(GameState g) = do
                     --we've finished dragging, but where did we end up?
                     case locate (location + dragOffset) of
                          PlayerBoard pb ->
-                           tryInstallOrgan time pb organ newUIS gs
+                           tryInstallOrgan t pb organ newUIS gs
                          _ -> runUI newUIS gs
            PlayerBoard p ->
              let b = (g.playerHealth # un Health # _.board # un Board # _.organs)
@@ -286,11 +286,10 @@ canInstallOrgan pos organ (GameState g) =
 
 tryInstallOrgan :: Instant -> Vector Int -> InternalOrgan
     -> UIState -> GameState -> UI Unit
-tryInstallOrgan t pos organ uis gs@(GameState g) =
-  if canInstallOrgan pos organ gs
-     then audioAction "Organ1.mp3" (InstallOrgan organ pos) t
-            (setDirtyUI t uis) gs
-     else runUI uis gs
+tryInstallOrgan t pb organ uis gs@(GameState g) =
+  if canInstallOrgan pb organ gs
+  then audioAction "Organ2.mp3" (InstallOrgan organ pb) t uis gs
+  else runUI uis gs
 
 tryRemoveOrgan :: Instant -> Vector Int -> UIState -> GameState -> UI Unit
 tryRemoveOrgan t p uis gs@(GameState g) =
