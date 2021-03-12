@@ -40,6 +40,7 @@ import GameState
 import UI
   ( UIState (..)
   , RightPane (..)
+  , OrganDrag
   , tileSize
   , screen
   , centerPaneRect
@@ -75,6 +76,7 @@ newtype RendererState = RendererState
   , gameStateId :: Ref (Maybe Instant)
   , uiStateId :: Ref (Maybe Instant)
   , prevDraw :: Ref (Maybe Instant)
+  , prevDrag :: Ref (Maybe OrganDrag)
   , screenCache :: Ref Canvas.ImageData
   }
 
@@ -117,6 +119,7 @@ newRendererState cvars = do
   gameStateId <- Ref.new Nothing
   uiStateId <- Ref.new Nothing
   prevDraw <- Ref.new Nothing
+  prevDrag <- Ref.new Nothing
   sid <- screenImageData cvars
   screenCache <- Ref.new sid
   pure $ RendererState
@@ -124,6 +127,7 @@ newRendererState cvars = do
     , gameStateId
     , uiStateId
     , prevDraw
+    , prevDrag
     , screenCache
     }
 
@@ -175,8 +179,7 @@ drawCenterPane
            for_ (organArray availableOrgans) \(Tuple organ position) ->
              drawOrgan true rs organ (rectPos centerPaneRect + fromGrid position)
            cacheScreen rs
-           --TODO: organ offset when being held
-           --TODO: surgery completion button
+         drawDraggedOrgan uis gs rs
 
 centerPaneMap :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
 centerPaneMap t (UIState uis) (GameState gs) rs = do
@@ -213,6 +216,33 @@ drawCenterPaneAnimations
     let rect = animEnemyRect t eid nme uis gs
         image = enemyImage nme
      in drawImage r image rect
+
+drawDraggedOrgan :: UIState -> GameState -> RendererState -> Effect Unit
+drawDraggedOrgan (UIState{draggingOrgan}) gs rs@(RendererState r) = do
+  case draggingOrgan of
+       Nothing -> pure unit
+       Just {organ: Tuple organ@(Organ (OrganSize w h) otype) p, offset } -> do
+         -- we're dragging an organ!
+         -- first, plaster over that organ's original position
+         let originalPos@(V{x,y}) = rectPos centerPaneRect + fromGrid p
+             width = toNumber w * tileSize
+             height = toNumber h * tileSize
+         clear rs {x,y,width,height}
+         -- next, copy from the backup to the last place we drew the organ
+         Ref.read r.prevDrag >>=
+           case _ of
+                Nothing -> pure unit
+                Just prev ->
+                  let (V v) = originalPos + prev.offset
+                   in restore rs {x: v.x, y: v.y, width, height}
+         -- finally, draw the moved organ
+         drawOrgan true rs organ
+            (spy "s" $ originalPos + offset)
+         -- and remember where we drew it
+
+           --TODO: organ offset when being held
+           --TODO: surgery completion button
+
 
 enemyImage :: Enemy -> String
 enemyImage (Enemy {tag: Roomba}) = "roomba.png"

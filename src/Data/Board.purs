@@ -38,6 +38,19 @@ insertOrgan pos organ@(Organ (OrganSize w h) _) bag =
          pure (pos + V{x,y})
    in foldl (\bag v -> RevMap.insert v io bag) bag coveredPositions
 
+--we can only insert an organ here if it doesnt overlap any existing ones
+canInsertOrgan :: BoardCoord -> Organ -> OrganBag -> Boolean
+canInsertOrgan pos organ@(Organ (OrganSize w h) _) bag =
+  let coveredPositions = do
+         x <- Array.range 0 w
+         y <- Array.range 0 h
+         pure (pos + V{x,y})
+      lookups = coveredPositions <#> \p -> RevMap.lookup p bag
+   in not $ any isJust lookups
+
+
+
+
 removeOrganAt :: BoardCoord -> OrganBag -> OrganBag
 removeOrganAt p bag = foldl (\b x -> RevMap.delete x b) bag $
   organExtent p bag

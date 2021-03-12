@@ -39,7 +39,7 @@ newState = do
    { p: V {x: 1, y:1}
    , playerHealth: freshPlayerHealth
    , enemies: exampleEnemies
-   , level: Regular 1
+   , level: Surgery 1
    , availableOrgans: exampleOrgans
    , events: []
    , terrain: fromMaybe (LI.fill 40 40 Floor) (freshTerrainFromString demoTerrain)

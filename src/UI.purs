@@ -26,8 +26,15 @@ import Framework.Render.Core (Rectangle)
 
 import Animation (Animating, DiffTime(..))
 import Animation as A
-import Data.Board (BoardCoord)
+import Data.Board
+  ( BoardCoord
+  , InternalOrgan
+  , Board (..)
+  , organAt
+  , canInsertOrgan
+  )
 import Data.Terrain (Terrain)
+import Data.Tuple as Tuple
 import GameState
   ( GameState (..)
   , GameAction (..)
@@ -35,6 +42,7 @@ import GameState
   , getTargetAtPosition
   , isSurgeryLevel
   , Target (..)
+  , Health (..)
   , EnemyId
   , Event (..)
   )
@@ -56,7 +64,12 @@ newtype UIState = UIState
   , enemyAnim :: Map EnemyId Offset
   , audioData :: AudioData
   , audioQueue :: AudioQueue
-  , draggingOrgan :: Maybe { location :: Vector Int, offset :: Vector Number }
+  , draggingOrgan :: Maybe OrganDrag
+  }
+
+type OrganDrag =
+  { organ :: InternalOrgan
+  , offset :: Vector Number
   }
 
 data RightPane =
@@ -152,26 +165,63 @@ surgeryUI uis gs@(GameState g) = do
   case value of
     PointerDown {location, pointerId} ->
       case locate location of
-           CenterPane p -> todo
+           CenterPane p ->
              -- check gamestate's organ map to see if an organ has been clicked
-             --let
-             -- if so, enter drag mode holding that organ
-           PlayerBoard p -> todo
+             case organAt p g.availableOrgans of
+                  Nothing -> runUI uis gs
+                  Just organ -> do
+                    -- if so, enter drag mode holding that organ
+                    dragOffset <- dragOrgan time pointerId organ location uis gs
+                    --we've finished dragging, but where did we end up?
+                    case locate (location + dragOffset) of
+                         PlayerBoard pb ->
+                           let bag = g.playerHealth
+                                 # un Health
+                                 # _.board
+                                 # un Board
+                                 # _.organs
+                               o = Tuple.fst organ
+                            in if spy "a" (canInsertOrgan pb o bag)
+                             then doAction (InstallOrgan o pb) time uis gs
+                             else runUI uis gs
+                         _ -> runUI uis gs
+           PlayerBoard p -> spy "hmm" todo
              -- confirm destroy organ
            _ -> runUI uis gs
     _otherEvents -> runUI uis gs
 
-dragOrgan :: Number -> Vector Int -> Vector Number -> UIState -> GameState -> UI Unit
-dragOrgan ptrId target initialClickPos uis gs = do
-  { time, value } <- F.input uis
-  case value of
-       PointerMove ptr -> todo
-       PointerUp {pointerId, location} ->
-         if pointerId == ptrId
-           then let offsetVector = location - initialClickPos
-                 in todo
-           else dragOrgan ptrId target initialClickPos uis gs
-       _ -> dragOrgan ptrId target initialClickPos uis gs
+
+dragOrgan
+  :: Instant
+  -> Number
+  -> InternalOrgan
+  -> Vector Number
+  -> UIState
+  -> GameState
+  -> UI (Vector Number)
+dragOrgan t ptrId organ initialClickPos uis gs =
+     go (setDirty $ setOffset zero uis)
+  where
+  setDirty (UIState u) = UIState u{gsTimestamp = t}
+  setOffset offset (UIState u) = UIState u{draggingOrgan =
+                     Just { organ, offset }
+                   }
+  stop (UIState u) = UIState u{draggingOrgan = Nothing}
+  go u =  do
+    { time, value } <- F.input u
+    case value of
+         PointerMove {pointerId, location} ->
+             let offset = location - initialClickPos
+                   in go (setOffset offset u)
+
+         PointerUp {pointerId, location} ->
+           if pointerId == ptrId
+             then pure $ location - initialClickPos
+             else pure zero
+         _ -> go uis
+
+
+
 
 rpTarget :: Vector Int -> GameState -> RightPane
 rpTarget pos gs = case getTargetAtPosition pos gs of
@@ -221,6 +271,8 @@ doAction action time uis gs = do
   let gs' = either (const gs) identity result
       uis' = nextUI time gs result uis
   runUI uis' gs'
+
+
 
 nextUI
   :: Instant
@@ -437,20 +489,20 @@ inRect (V v) r =
       else Nothing
 
 locate :: Vector Number -> UILocation
-locate p = fromMaybe Other $ locateCenterPane p <|> locateTargetBoard p
+locate p = fromMaybe Other $
+      locateBlock p CenterPane centerPaneRect
+  <|> locateBlock p TargetBoard targetBoardRect
+  <|> locateBlock p PlayerBoard playerBoardRect
 
-locateCenterPane :: Vector Number -> Maybe UILocation
-locateCenterPane p = do
-  (V v) <- inRect p centerPaneRect
-  pure $ CenterPane $ V
-         { x: Int.floor (v.x / tileSize)
-         , y: Int.floor (v.y / tileSize)
-         }
 
-locateTargetBoard :: Vector Number -> Maybe UILocation
-locateTargetBoard p = do
-  (V v) <- inRect p targetBoardRect
-  pure $ TargetBoard $ V
+locateBlock
+  :: Vector Number
+  -> (Vector Int -> UILocation)
+  -> Rectangle
+  -> Maybe UILocation
+locateBlock p f rect = do
+  (V v) <- inRect p rect
+  pure $ f $ V
          { x: Int.floor (v.x / tileSize)
          , y: Int.floor (v.y / tileSize)
          }

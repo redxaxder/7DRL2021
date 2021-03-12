@@ -14,7 +14,6 @@ import PointerEvent as Ptr
 import Web.UIEvent.KeyboardEvent  as KB
 
 import Unsafe.Coerce (unsafeCoerce)
-import Data.Variant as V
 import Data.Time.Duration (Milliseconds (..))
 import Control.Alt ((<|>))
 
@@ -70,6 +69,9 @@ mkEventListener eventName parseEvent c =
  makeEvent \k -> do
   let target = unsafeCoerce c
   listener <- eventListener \e -> do
-    parseEvent e # traverse_ k
+     parseEvent e # traverse_ k
   addEventListener (wrap eventName) listener false target
   pure (removeEventListener (wrap eventName) listener false target)
+
+
+
