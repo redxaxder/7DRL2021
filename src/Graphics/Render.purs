@@ -92,7 +92,6 @@ cacheScreen (RendererState {cvars, screenCache}) = do
 
 restore :: RendererState -> Rectangle -> Effect Unit
 restore (RendererState rs) rect = do
-  let _ = spy "restore" rect
   ctx <- Canvas.getContext2D rs.cvars.canvas
   id <- Ref.read rs.screenCache
   {-
@@ -166,7 +165,7 @@ drawCenterPane
   gs@(GameState {availableOrgans})
   rs@(RendererState r) = do
   prevGS <- Ref.read r.gameStateId
-  let gsDirty = maybe true ((>) gsTimestamp) prevGS
+  let gsDirty = maybe true ((>) $ gsTimestamp) prevGS
   case isSurgeryLevel gs of
        false -> do
          when gsDirty $ do
@@ -181,6 +180,7 @@ drawCenterPane
              drawOrgan true rs organ (rectPos centerPaneRect + fromGrid position)
            cacheScreen rs
          drawDraggedOrgan uis gs rs
+  Ref.write (Just gsTimestamp) r.gameStateId
 
 centerPaneMap :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
 centerPaneMap t (UIState uis) (GameState gs) rs = do
@@ -222,13 +222,13 @@ drawDraggedOrgan :: UIState -> GameState -> RendererState -> Effect Unit
 drawDraggedOrgan (UIState{draggingOrgan}) gs rs@(RendererState r) = do
   case draggingOrgan of
        Nothing -> pure unit
-       Just {organ: Tuple organ@(Organ (OrganSize w h) otype) p, offset } -> do
+       Just dragging@{organ: Tuple organ@(Organ (OrganSize w h) otype) p, offset } -> do
          -- we're dragging an organ!
          -- first, plaster over that organ's original position
          let originalPos@(V{x,y}) = rectPos centerPaneRect + fromGrid p
              width = toNumber w * tileSize
              height = toNumber h * tileSize
-         clear rs {x,y,width,height}
+         clear rs ({x,y,width,height})
          -- next, copy from the backup to the last place we drew the organ
          Ref.read r.prevDrag >>=
            case _ of
@@ -237,8 +237,14 @@ drawDraggedOrgan (UIState{draggingOrgan}) gs rs@(RendererState r) = do
                   let (V v) = originalPos + prev.offset
                    in restore rs {x: v.x, y: v.y, width, height}
          -- finally, draw the moved organ
-         drawOrgan true rs organ (originalPos + offset)
+         let drawTo@(V dt) = originalPos + offset
+         drawOrgan true rs organ drawTo
          -- and remember where we drew it
+         let prevDrag =
+               { organ: dragging.organ
+               , offset
+               }
+         Ref.write (Just prevDrag) r.prevDrag
 
            --TODO: organ offset when being held
            --TODO: surgery completion button

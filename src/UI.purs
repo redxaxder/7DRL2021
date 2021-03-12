@@ -27,8 +27,7 @@ import Framework.Render.Core (Rectangle)
 import Animation (Animating, DiffTime(..))
 import Animation as A
 import Data.Board
-  ( BoardCoord
-  , InternalOrgan
+  ( InternalOrgan
   , Board (..)
   , organAt
   , canInsertOrgan
@@ -48,9 +47,6 @@ import GameState
   )
 
 import Input (Input, InputValue (..))
-import PointerEvent as Ptr
-
-
 
 type UI r =
   F.UIM GameState GameAction FailedAction UIState Input r
@@ -171,7 +167,9 @@ surgeryUI uis gs@(GameState g) = do
                   Nothing -> runUI uis gs
                   Just organ -> do
                     -- if so, enter drag mode holding that organ
-                    dragOffset <- dragOrgan time pointerId organ location uis gs
+                    {time: t, v: dragOffset} <-
+                        dragOrgan time pointerId organ location uis gs
+                    let newUIS = setDirtyAll t uis
                     --we've finished dragging, but where did we end up?
                     case locate (location + dragOffset) of
                          PlayerBoard pb ->
@@ -182,13 +180,23 @@ surgeryUI uis gs@(GameState g) = do
                                  # _.organs
                                o = Tuple.fst organ
                             in if canInsertOrgan pb o bag
-                             then doAction (InstallOrgan o pb) time uis gs
-                             else runUI uis gs
-                         _ -> runUI uis gs
-           PlayerBoard p -> spy "hmm" todo
-             -- confirm destroy organ
+                             then doAction (InstallOrgan o pb) t newUIS gs
+                             else runUI newUIS gs
+                         _ -> runUI newUIS gs
            _ -> runUI uis gs
     _otherEvents -> runUI uis gs
+
+
+setDirtyGS :: Instant -> UIState -> UIState
+setDirtyGS t (UIState u) = UIState u {gsTimestamp = t}
+
+setDirtyUI :: Instant -> UIState -> UIState
+setDirtyUI t (UIState u) = UIState u {timestamp = t}
+
+setDirtyAll :: Instant -> UIState -> UIState
+setDirtyAll t uis = uis
+  # setDirtyUI t
+  # setDirtyGS t
 
 
 dragOrgan
@@ -198,7 +206,7 @@ dragOrgan
   -> Vector Number
   -> UIState
   -> GameState
-  -> UI (Vector Number)
+  -> UI {time :: Instant, v :: Vector Number}
 dragOrgan t ptrId organ initialClickPos uis gs =
      go (setDirty $ setOffset zero uis)
   where
@@ -216,9 +224,9 @@ dragOrgan t ptrId organ initialClickPos uis gs =
 
          PointerUp {pointerId, location} ->
            if pointerId == ptrId
-             then pure $ location - initialClickPos
-             else pure zero
-         _ -> go uis
+             then pure $ {time, v: location - initialClickPos}
+             else pure $ {time, v: zero}
+         _ -> go u
 
 
 
