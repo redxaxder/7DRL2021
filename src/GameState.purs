@@ -5,11 +5,8 @@ import Framework.Direction (Direction, move)
 import Data.Array as Array
 import Data.Set as Set
 import Data.Map as Map
-import Data.Tuple as Tuple
 import Data.LinearIndex (LinearIndex (..))
 import Data.LinearIndex as LI
-import Data.RevMap (RevMap)
-import Data.RevMap as RevMap
 import Data.FoldableWithIndex (findWithIndex)
 import Data.String as String
 import Data.String.CodeUnits (toCharArray)
@@ -17,7 +14,7 @@ import Data.Position (Position (..))
 import Data.Terrain (Terrain (..), demoTerrain, charToTerrain, flatten)
 import Data.Ord (abs)
 import Data.Board
-  ( BoardCoord(..)
+  ( BoardCoord
   , Board(..)
   , Clue
   , Organ(..)
