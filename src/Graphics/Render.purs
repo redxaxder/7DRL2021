@@ -92,6 +92,7 @@ cacheScreen (RendererState {cvars, screenCache}) = do
 
 restore :: RendererState -> Rectangle -> Effect Unit
 restore (RendererState rs) rect = do
+  let _ = spy "restore" rect
   ctx <- Canvas.getContext2D rs.cvars.canvas
   id <- Ref.read rs.screenCache
   {-
@@ -236,8 +237,7 @@ drawDraggedOrgan (UIState{draggingOrgan}) gs rs@(RendererState r) = do
                   let (V v) = originalPos + prev.offset
                    in restore rs {x: v.x, y: v.y, width, height}
          -- finally, draw the moved organ
-         drawOrgan true rs organ
-            (spy "s" $ originalPos + offset)
+         drawOrgan true rs organ (originalPos + offset)
          -- and remember where we drew it
 
            --TODO: organ offset when being held

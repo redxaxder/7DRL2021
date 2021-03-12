@@ -181,7 +181,7 @@ surgeryUI uis gs@(GameState g) = do
                                  # un Board
                                  # _.organs
                                o = Tuple.fst organ
-                            in if spy "a" (canInsertOrgan pb o bag)
+                            in if canInsertOrgan pb o bag
                              then doAction (InstallOrgan o pb) time uis gs
                              else runUI uis gs
                          _ -> runUI uis gs
