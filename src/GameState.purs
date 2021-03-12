@@ -187,16 +187,18 @@ enemyMove (GameState gs) eid newE moveDir = GameState gs{ enemies = Map.insert e
       # reportEvent (EnemyMoved eid moveDir)
 
 enemyAttack :: GameState -> EnemyId -> GameState
-enemyAttack (GameState gs) eid =
-  let
-    (Health h) = gs.playerHealth
-    attack = randomSpace h.board (GameState gs)
-    newHealth = injure (Tuple.fst attack) gs.playerHealth
-  in GameState gs { playerHealth = newHealth, rng = Tuple.snd attack }
-     # reportEvent (EnemyAttacked eid $ Tuple.fst attack)
+enemyAttack g eid = withRandom go g
+  where
+  go :: GameState -> R.Random GameState
+  go (GameState gs) = do
+    let (Health h) = gs.playerHealth
+    attack <- randomSpace h.board
+    let newHealth = injure attack gs.playerHealth
+    pure $ GameState gs { playerHealth = newHealth }
+       # reportEvent (EnemyAttacked eid attack)
 
-randomSpace :: Board -> GameState -> Tuple BoardCoord R.Gen
-randomSpace (Board b) (GameState gs) =
+randomSpace :: Board -> R.Random BoardCoord
+randomSpace (Board b) =
   let
     cart :: Array (Vector Int)
     cart = do
@@ -205,9 +207,7 @@ randomSpace (Board b) (GameState gs) =
       pure $ V {x,y}
     uninjured :: Array (Vector Int)
     uninjured = Array.filter (\x -> not $ Set.member x b.injuries) cart
-    attack :: { result :: Vector Int, nextGen :: R.Gen }
-    attack= R.runRandom (R.unsafeElement uninjured) gs.rng
-  in Tuple attack.result attack.nextGen
+   in R.unsafeElement uninjured
 
 intVecToDir :: Vector Int -> Vector Int
 intVecToDir (V {x,y}) = V {x: abs' x, y: abs' y}
@@ -233,6 +233,11 @@ newtype GameState = GameState
   , events :: Array Event
   , rng :: R.Gen
   }
+
+withRandom :: (GameState -> R.Random GameState) -> GameState -> GameState
+withRandom f gs@(GameState g) =
+  let {result: (GameState nextG), nextGen} = R.runRandom (f gs) g.rng
+   in GameState nextG{ rng = nextGen }
 
 data Level = Regular Int | Surgery Int
 
