@@ -36,15 +36,18 @@ newState :: Effect GameState
 newState = do
   random <- R.newGen
   pure $ GameState
-   { p: V {x: 1, y:1}
+   { p: startingPos
    , playerHealth: freshPlayerHealth
    , enemies: exampleEnemies
-   , level: Surgery 1
+   , level: Regular 1
    , availableOrgans: exampleOrgans
    , events: []
    , terrain: fromMaybe (LI.fill 40 40 Floor) (freshTerrainFromString demoTerrain)
    , rng: random
    }
+
+startingPos :: Vector Int
+startingPos = V {x: 1, y: 1}
 
 exampleEnemies :: Map EnemyId Enemy
 exampleEnemies =
@@ -118,7 +121,15 @@ enemyOnSpace :: Vector Int -> Enemy -> Boolean
 enemyOnSpace v (Enemy e) = e.location == v
 
 step :: GameState -> GameAction -> Either FailedAction GameState
-step gs = handleAction (clearEvents gs)
+step gs = handleAction (clearEvents <<< checkDeath $ gs)
+
+checkDeath :: GameState -> GameState
+checkDeath (GameState gs) =
+  let
+    (Health h) = gs.playerHealth
+  in if h.hpCount <= 0
+     then GameState gs {p = startingPos, playerHealth = freshPlayerHealth, enemies = exampleEnemies, level = Regular 1 }
+     else GameState gs
 
 handleAction :: GameState -> GameAction -> Either FailedAction GameState
 handleAction g@(GameState gs) a@(Move dir) =
@@ -136,11 +147,18 @@ handleAction (GameState gs) a@(Attack bc eid) =
   let menemy = Map.lookup eid gs.enemies
    in case menemy of
     Nothing -> Left FailedAttack
-    Just enemy -> Right $
-      (GameState gs {enemies = Map.insert eid (injureEnemy bc enemy) gs.enemies})
-        # reportEvent (PlayerAttacked eid)
+    Just enemy -> Right $ reportEvent (PlayerAttacked eid)
+        $ handleEnemyInjury (GameState gs) enemy eid bc
         # enemyTurn
 handleAction (GameState gs) _ = Right $ GameState gs
+
+handleEnemyInjury :: GameState -> Enemy -> EnemyId -> BoardCoord -> GameState
+handleEnemyInjury (GameState gs) (Enemy e) eid bc =
+  let
+    (Health h) = e.health
+  in if h.hpCount <= 0
+     then GameState gs {enemies = Map.delete eid gs.enemies} # reportEvent (EnemyDied eid)
+     else (GameState gs {enemies = Map.insert eid (injureEnemy bc (Enemy e)) gs.enemies})
 
 injureEnemy :: BoardCoord -> Enemy -> Enemy
 injureEnemy bc (Enemy e) =
@@ -192,18 +210,20 @@ enemyAttack g eid = withRandom go g
   go :: GameState -> R.Random GameState
   go (GameState gs) = do
     let (Health h) = gs.playerHealth
-    attack <- randomSpace h.board
-    let newHealth = injure attack gs.playerHealth
-    pure $ GameState gs { playerHealth = newHealth }
-       # reportEvent (EnemyAttacked eid attack)
+    attack <- randomUninjuredSpace h.board
+    let (Health newHealth) = injure attack gs.playerHealth
+    pure $ GameState gs { playerHealth = (Health newHealth) }
+       # if newHealth.hpCount <= 0
+         then reportEvent PlayerDied
+         else reportEvent (EnemyAttacked eid attack)
 
-randomSpace :: Board -> R.Random BoardCoord
-randomSpace (Board b) =
+randomUninjuredSpace :: Board -> R.Random BoardCoord
+randomUninjuredSpace (Board b) =
   let
     cart :: Array (Vector Int)
     cart = do
-      x <- Array.range 0 6
-      y <- Array.range 0 6
+      x <- Array.range 0 5
+      y <- Array.range 0 5
       pure $ V {x,y}
     uninjured :: Array (Vector Int)
     uninjured = Array.filter (\x -> not $ Set.member x b.injuries) cart
@@ -222,6 +242,8 @@ data Event =
   | EnemyMoved EnemyId (Vector Int)
   | PlayerAttacked EnemyId
   | EnemyAttacked EnemyId BoardCoord
+  | PlayerDied
+  | EnemyDied EnemyId
 
 newtype GameState = GameState
   { p :: Vector Int
