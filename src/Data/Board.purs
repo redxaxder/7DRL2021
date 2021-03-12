@@ -6,6 +6,7 @@ import Data.Tuple as Tuple
 import Data.RevMap (RevMap)
 import Data.RevMap as RevMap
 import Data.Set as Set
+import Random as R
 import Framework.Direction (move, directions8)
 
 data OrganSize = OrganSize Int Int
@@ -134,3 +135,27 @@ data Clue =
   | MixedClue Int -- HealthAndArmor
   | ConcealedClue
   | EmptyClue
+
+randomUninjuredSpace :: Board -> R.Random BoardCoord
+randomUninjuredSpace (Board b) =
+  let
+    cart :: Array (Vector Int)
+    cart = do
+      x <- Array.range 0 5
+      y <- Array.range 0 5
+      pure $ V {x,y}
+    uninjured :: Array (Vector Int)
+    uninjured = Array.filter (\x -> not $ Set.member x b.injuries) cart
+   in R.unsafeElement uninjured
+
+newtype Health = Health
+  { hpCount :: Int
+  , board :: Board
+  }
+
+injure :: BoardCoord -> Health -> Health
+injure v (Health h) =
+  let board = injureBoard v h.board
+   in Health { hpCount: hpCount board, board }
+
+derive instance newtypeHealth :: Newtype Health _

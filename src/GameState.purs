@@ -26,6 +26,17 @@ import Data.Board
   , OrganBag
   , emptyBag
   , insertOrgan
+  , Health(..)
+  , randomUninjuredSpace
+  , injure
+  )
+import Data.Enemy
+  ( Enemy(..)
+  , EnemyTag(..)
+  , EnemyId
+  , enemyOnSpace
+  , injureEnemy
+  , injureEnemyMulti
   )
 import Random.Gen as R
 
@@ -114,9 +125,6 @@ isWall v t = (==) Wall $ fromMaybe Floor (LI.index t (fromVector v))
 fromVector :: Vector Int -> Position
 fromVector (V v) = Position { x: v.x, y: v.y }
 
-enemyOnSpace :: Vector Int -> Enemy -> Boolean
-enemyOnSpace v (Enemy e) = e.location == v
-
 step :: GameState -> GameAction -> Either FailedAction GameState
 step gs = handleAction (clearEvents <<< checkDeath $ gs)
 
@@ -157,20 +165,6 @@ handleEnemyInjury (GameState gs) (Enemy e) eid bc =
      then GameState gs {enemies = Map.delete eid gs.enemies} # reportEvent (EnemyDied eid)
      else (GameState gs {enemies = Map.insert eid (injureEnemy bc (Enemy e)) gs.enemies})
 
-injureEnemy :: BoardCoord -> Enemy -> Enemy
-injureEnemy bc (Enemy e) =
-  let health@(Health {board}) = injure bc e.health
-      clue = getClue bc board
-   in Enemy e { health = health, clueCache = Map.insert bc clue e.clueCache}
-
-injureEnemyMulti :: Array BoardCoord -> Enemy -> Enemy
-injureEnemyMulti bcs e = foldr injureEnemy e bcs
-
-injure :: BoardCoord -> Health -> Health
-injure v (Health h) =
-  let board = injureBoard v h.board
-   in Health { hpCount: hpCount board, board }
-
 isPassable :: Vector Int -> GameState -> Boolean
 isPassable t (GameState gs) =
   inWorldBounds t gs.terrain
@@ -182,49 +176,6 @@ isExit :: Vector Int -> GameState -> Boolean
 isExit v (GameState gs) = case LI.index gs.terrain (fromVector v) of
   Just Exit -> true
   _ -> false
-
-enemyTurn :: GameState -> GameState
-enemyTurn g@(GameState gs) = foldrWithIndex enemyAction g gs.enemies
-
-enemyAction :: EnemyId -> Enemy -> GameState -> GameState
-enemyAction eid (Enemy e) (GameState gs) =
-  let target = e.location + (intVecToDir $ gs.p - e.location)
-      moveDir = intVecToDir $ gs.p - e.location
-      newE = if isPassable target (GameState gs)
-               then Enemy e { location = e.location + moveDir }
-               else Enemy e
-   in if target == gs.p
-      then enemyAttack (GameState gs) eid
-      else enemyMove (GameState gs) eid newE moveDir
-
-enemyMove :: GameState -> EnemyId -> Enemy -> Vector Int -> GameState
-enemyMove (GameState gs) eid newE moveDir = GameState gs{ enemies = Map.insert eid newE gs.enemies }
-      # reportEvent (EnemyMoved eid moveDir)
-
-enemyAttack :: GameState -> EnemyId -> GameState
-enemyAttack g eid = withRandom go g
-  where
-  go :: GameState -> R.Random GameState
-  go (GameState gs) = do
-    let (Health h) = gs.playerHealth
-    attack <- randomUninjuredSpace h.board
-    let (Health newHealth) = injure attack gs.playerHealth
-    pure $ GameState gs { playerHealth = (Health newHealth) }
-       # if newHealth.hpCount <= 0
-         then reportEvent PlayerDied
-         else reportEvent (EnemyAttacked eid attack)
-
-randomUninjuredSpace :: Board -> R.Random BoardCoord
-randomUninjuredSpace (Board b) =
-  let
-    cart :: Array (Vector Int)
-    cart = do
-      x <- Array.range 0 5
-      y <- Array.range 0 5
-      pure $ V {x,y}
-    uninjured :: Array (Vector Int)
-    uninjured = Array.filter (\x -> not $ Set.member x b.injuries) cart
-   in R.unsafeElement uninjured
 
 intVecToDir :: Vector Int -> Vector Int
 intVecToDir (V {x,y}) = V {x: abs' x, y: abs' y}
@@ -297,7 +248,6 @@ getEnemyAtPosition p (GameState gs) = do
 getTerrainAtPosition :: Vector Int -> GameState -> Terrain
 getTerrainAtPosition p (GameState {terrain}) = fromMaybe Floor $ LI.index terrain (fromVector p)
 
-type EnemyId = Int
 type WeaponId = Int
 
 data GameAction =
@@ -312,21 +262,33 @@ data FailedAction =
   FailedAction Direction
   | FailedAttack
 
-newtype Health = Health
-  { hpCount :: Int
-  , board :: Board
-  }
+enemyTurn :: GameState -> GameState
+enemyTurn g@(GameState gs) = foldrWithIndex enemyAction g gs.enemies
 
-derive instance newtypeHealth :: Newtype Health _
+enemyAction :: EnemyId -> Enemy -> GameState -> GameState
+enemyAction eid (Enemy e) (GameState gs) =
+  let target = e.location + (intVecToDir $ gs.p - e.location)
+      moveDir = intVecToDir $ gs.p - e.location
+      newE = if isPassable target (GameState gs)
+               then Enemy e { location = e.location + moveDir }
+               else Enemy e
+   in if target == gs.p
+      then enemyAttack (GameState gs) eid
+      else enemyMove (GameState gs) eid newE moveDir
 
-newtype Enemy = Enemy
-  { location :: Vector Int
-  , health :: Health
-  , clueCache :: Map BoardCoord Clue
-  , tag :: EnemyTag
-  }
+enemyMove :: GameState -> EnemyId -> Enemy -> Vector Int -> GameState
+enemyMove (GameState gs) eid newE moveDir = GameState gs{ enemies = Map.insert eid newE gs.enemies }
+      # reportEvent (EnemyMoved eid moveDir)
 
-data EnemyTag = Roomba
-
-enemyName :: EnemyTag -> String
-enemyName Roomba = "murderous vacuum robot"
+enemyAttack :: GameState -> EnemyId -> GameState
+enemyAttack g eid = withRandom go g
+  where
+  go :: GameState -> R.Random GameState
+  go (GameState gs) = do
+    let (Health h) = gs.playerHealth
+    attack <- randomUninjuredSpace h.board
+    let (Health newHealth) = injure attack gs.playerHealth
+    pure $ GameState gs { playerHealth = (Health newHealth) }
+       # if newHealth.hpCount <= 0
+         then reportEvent PlayerDied
+         else reportEvent (EnemyAttacked eid attack)

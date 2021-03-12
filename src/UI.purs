@@ -29,6 +29,7 @@ import Animation as A
 import Data.Board
   ( InternalOrgan
   , Board (..)
+  , Health (..)
   , organAt
   , canInsertOrgan
   )
@@ -41,10 +42,9 @@ import GameState
   , getTargetAtPosition
   , isSurgeryLevel
   , Target (..)
-  , Health (..)
-  , EnemyId
   , Event (..)
   )
+import Data.Enemy (EnemyId)
 
 import Input (Input, InputValue (..))
 

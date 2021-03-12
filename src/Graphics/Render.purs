@@ -15,6 +15,7 @@ import Data.Set as Set
 import Data.Board
   ( Board(..)
   , Clue (..)
+  , Health (..)
   , Organ (..)
   , OrganType (..)
   , OrganSize (..)
@@ -30,11 +31,6 @@ import Framework.Render.Canvas as FCanvas
 
 import GameState
   ( GameState (..)
-  , Health (..)
-  , Enemy (..)
-  , EnemyTag (..)
-  , EnemyId
-  , enemyName
   , isSurgeryLevel
   )
 import UI
@@ -54,7 +50,12 @@ import UI
 import Framework.Render.Core (Rectangle, Image (..))
 import Data.Position (Position (..))
 
-
+import Data.Enemy
+  ( Enemy(..)
+  , EnemyTag (..)
+  , EnemyId
+  , enemyName
+  )
 
 {-
 
