@@ -9,6 +9,7 @@ module Data.RevMap
   , fromFoldableWithIndex
   , values
   , uniqueValues
+  , spyRev
   )
   where
 
@@ -35,6 +36,9 @@ import Data.FoldableWithIndex
 import Data.Maybe (fromMaybe, Maybe (..))
 import Data.Array as Array
 
+import Debug.Trace (spy)
+
+
 -- A multimap is a map with an index for (multi) preimage lookup
 
 data RevMap k v =
@@ -59,6 +63,13 @@ delete k (RevMap l r) = RevMap (Map.delete k l)
 
 lookupReverse :: forall k v. Ord v => v -> RevMap k v -> Maybe (Array k)
 lookupReverse v (RevMap _ r) = Map.lookup v r
+
+flat :: forall k v a. Map k v -> Array {k :: k, v :: v}
+flat = foldlWithIndex (\k a v -> Array.cons {k,v} a) []
+
+spyRev :: forall k v. RevMap k v -> RevMap k v
+spyRev rm@(RevMap l r) = let _ = spy "rm" {l:flat l,r: flat r} in rm
+
 
 fromFoldable :: forall f k v. Ord k => Ord v => Foldable f => f (Tuple k v) -> RevMap k v
 fromFoldable xs = foldl (\m (Tuple k v) -> insert k v m) empty xs

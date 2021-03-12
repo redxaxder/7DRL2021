@@ -34,8 +34,8 @@ insertOrgan :: BoardCoord -> Organ -> OrganBag -> OrganBag
 insertOrgan pos organ@(Organ (OrganSize w h) _) bag =
   let io = Tuple organ pos
       coveredPositions = do
-         x <- Array.range 0 w
-         y <- Array.range 0 h
+         x <- Array.range 0 (w - 1)
+         y <- Array.range 0 (h - 1)
          pure (pos + V{x,y})
    in foldl (\bag v -> RevMap.insert v io bag) bag coveredPositions
 
@@ -43,8 +43,8 @@ insertOrgan pos organ@(Organ (OrganSize w h) _) bag =
 canInsertOrgan :: BoardCoord -> Organ -> OrganBag -> Boolean
 canInsertOrgan pos organ@(Organ (OrganSize w h) _) bag =
   let coveredPositions = do
-         x <- Array.range 0 w
-         y <- Array.range 0 h
+         x <- Array.range 0 (w - 1)
+         y <- Array.range 0 (h - 1)
          pure (pos + V{x,y})
       lookups = coveredPositions <#> \p -> RevMap.lookup p bag
    in not $ any isJust lookups

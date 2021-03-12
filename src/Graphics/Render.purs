@@ -225,18 +225,18 @@ drawDraggedOrgan (UIState{draggingOrgan}) gs rs@(RendererState r) = do
        Nothing -> pure unit
        Just dragging@{organ: Tuple organ@(Organ (OrganSize w h) otype) p, offset } -> do
          -- we're dragging an organ!
-         -- first, plaster over that organ's original position
          let originalPos@(V{x,y}) = rectPos centerPaneRect + fromGrid p
              width = toNumber w * tileSize
              height = toNumber h * tileSize
-         clear rs ({x,y,width,height})
-         -- next, copy from the backup to the last place we drew the organ
+         -- first, copy from the backup to the last place we drew the organ
          Ref.read r.prevDrag >>=
            case _ of
                 Nothing -> pure unit
                 Just prev ->
                   let (V v) = originalPos + prev.offset
                    in restore rs {x: v.x, y: v.y, width, height}
+         -- next, plaster over that organ's original position
+         clear rs ({x,y,width,height})
          -- finally, draw the moved organ
          let drawTo@(V dt) = originalPos + offset
          drawOrgan true rs organ drawTo

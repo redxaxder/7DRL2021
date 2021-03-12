@@ -148,7 +148,7 @@ mapUI uis@(UIState u) gs@(GameState g) = do
          case locate location of
               CenterPane p ->
                 let newUI = viewTarget time p uis gs
-                 in runUI newUI gs
+                 in runUI newUI gs -- yes
               _otherLocations -> if u.lockedTarget /= u.rightPaneTarget
                            then let newUI = toLockedTarget time uis
                                  in runUI newUI gs
@@ -180,12 +180,20 @@ surgeryUI uis gs@(GameState g) = do
                                  # _.organs
                                o = Tuple.fst organ
                             in if canInsertOrgan pb o bag
-                             then doAction (InstallOrgan o pb) t newUIS gs
+                             then audioAction "Organ1.mp3"
+                                     (InstallOrgan o pb) t newUIS gs
                              else runUI newUIS gs
                          _ -> runUI newUIS gs
+           PlayerBoard p ->
+             let b = (g.playerHealth # un Health # _.board # un Board # _.organs)
+              in
+                   case organAt p b of
+                        Nothing -> runUI uis gs
+                        Just (Tuple _ pos) ->
+                          audioAction "Organ3.mp3" (RemoveOrgan pos) time
+                            (setDirtyUI time uis) gs
            _ -> runUI uis gs
     _otherEvents -> runUI uis gs
-
 
 setDirtyGS :: Instant -> UIState -> UIState
 setDirtyGS t (UIState u) = UIState u {gsTimestamp = t}
@@ -198,7 +206,6 @@ setDirtyAll t uis = uis
   # setDirtyUI t
   # setDirtyGS t
 
-
 dragOrgan
   :: Instant
   -> Number
@@ -207,8 +214,11 @@ dragOrgan
   -> UIState
   -> GameState
   -> UI {time :: Instant, v :: Vector Number}
-dragOrgan t ptrId organ initialClickPos uis gs =
-     go (setDirty $ setOffset zero uis)
+dragOrgan t ptrId organ initialClickPos uis gs = uis
+  # setDirty
+  # setOffset zero
+  # enqueueAudio t "Puip1.mp3"
+  # go
   where
   setDirty (UIState u) = UIState u{gsTimestamp = t}
   setOffset offset (UIState u) = UIState u{draggingOrgan =
@@ -227,9 +237,6 @@ dragOrgan t ptrId organ initialClickPos uis gs =
              then pure $ {time, v: location - initialClickPos}
              else pure $ {time, v: zero}
          _ -> go u
-
-
-
 
 rpTarget :: Vector Int -> GameState -> RightPane
 rpTarget pos gs = case getTargetAtPosition pos gs of
@@ -280,6 +287,13 @@ doAction action time uis gs = do
       uis' = nextUI time gs result uis
   runUI uis' gs'
 
+audioAction :: String -> GameAction -> Instant -> UIState -> GameState -> UI Unit
+audioAction audio action time uis gs = do
+  result <- F.action action
+  let gs' = either (const gs) identity result
+      uis' = nextUI time gs result uis
+             # enqueueAudio time audio
+  runUI uis' gs'
 
 
 nextUI
@@ -502,7 +516,6 @@ locate p = fromMaybe Other $
   <|> locateBlock p TargetBoard targetBoardRect
   <|> locateBlock p PlayerBoard playerBoardRect
 
-
 locateBlock
   :: Vector Number
   -> (Vector Int -> UILocation)
@@ -539,7 +552,10 @@ clearAudio (UIState u) = UIState u { audioQueue = emptyAudioQueue }
 
 enqueueAudio :: Instant -> String -> UIState -> UIState
 enqueueAudio time file (UIState u) = UIState u
-  { audioQueue = Array.cons {time, file} u.audioQueue }
+  { audioQueue = Array.cons {time, file} u.audioQueue
+  , timestamp = time
+  }
+
 
 getAudio :: UIState -> FA.AudioSignal
 getAudio u@(UIState uis) =
@@ -576,5 +592,13 @@ imagePaths =
 
 audioPaths :: Array String
 audioPaths =
-  [ "pew1.mp3"
+  [ "Clang1.mp3"
+  , "Organ1.mp3"
+  , "Organ2.mp3"
+  , "Organ3.mp3"
+  , "Puip1.mp3"
+  , "Taser1.mp3"
+  , "Tink1.mp3"
+  , "Tink2.mp3"
+  , "pew1.mp3"
   ]

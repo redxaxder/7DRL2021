@@ -108,7 +108,7 @@ freshPlayerBoard :: Board
 freshPlayerBoard = Board
   { organs: emptyBag
       # insertOrgan (vec 1 1) playerHpOrgan
-      # insertOrgan (vec 3 1) playerHpOrgan
+      -- # insertOrgan (vec 3 1) playerHpOrgan
       # insertOrgan (vec 2 3) playerHpOrgan
   , injuries: Set.empty
   }
@@ -255,7 +255,7 @@ data GameAction =
   | Attack BoardCoord EnemyId
   | SelectWeapon WeaponId
   | InstallOrgan Organ BoardCoord
-  | RemoveOrgan Int
+  | RemoveOrgan BoardCoord
   | FinishSurgery
 
 data FailedAction =
