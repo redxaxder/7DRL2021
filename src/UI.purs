@@ -451,7 +451,7 @@ leftPaneRect = cutLeft leftPaneSize screen
 
 playerBoardRect :: Rectangle
 playerBoardRect = leftPaneRect
-  # cutDown 11.0
+  # cutDown (tileSize + 1.0)
   # cutUp (6.0 * tileSize)
 
 centerPaneSize :: Number
@@ -511,7 +511,7 @@ verticalTiles :: Number
 verticalTiles = 40.0
 
 tileSize :: Number
-tileSize = 10.0
+tileSize = 20.0
 
 --------------------------------------------------------------------------------
 -- Locating clicks -------------------------------------------------------------

@@ -29,6 +29,7 @@ import Data.Board
   , randomUninjuredSpace
   , canInsertOrgan
   , removeOrganAt
+  , organExtent
   , isValidBoardCoord
   , extent
   , injure
@@ -160,10 +161,11 @@ handleAction (GameState gs) a@(Attack bc eid) =
         # enemyTurn
 handleAction g a@(InstallOrgan organ bc) =
   if canInstallOrgan bc organ g
-    then Right $ let _ = spy "b" "b" in g
+    then Right $ g
                # installOrgan bc (Tuple.fst organ)
                # removeAvailableOrgan organ
     else Left FailedInstall
+handleAction g (RemoveOrgan p) = Right $ g # removeOrgan p
 handleAction g FinishSurgery = Right $ goToNextLevel g
 handleAction (GameState gs) _ = Right $ GameState gs
 
@@ -325,4 +327,14 @@ installOrgan pos organ (GameState g) =
 removeAvailableOrgan :: InternalOrgan -> GameState -> GameState
 removeAvailableOrgan organ (GameState gs) = GameState gs
   { availableOrgans = removeOrganAt (Tuple.snd organ) gs.availableOrgans }
+
+removeOrgan :: BoardCoord -> GameState -> GameState
+removeOrgan pos (GameState g) =
+  let health = un Health g.playerHealth
+      board = un Board health.board
+      spacesToInjure = organExtent pos board.organs
+      newBag = removeOrganAt pos board.organs
+      newBoard = board {organs = newBag}
+      newHealth = foldr injure (mkHealth (Board newBoard)) spacesToInjure
+   in GameState g{playerHealth = mkHealth (Board newBoard)}
 

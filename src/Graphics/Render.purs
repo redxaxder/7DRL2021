@@ -81,7 +81,24 @@ newtype RendererState = RendererState
   , uiStateId :: Ref (Maybe Instant)
   , toRestore :: Ref (Array Rectangle)
   , screenCache :: Ref Canvas.ImageData
+  , debug :: Ref Debug
   }
+
+type Debug = Int
+initDebug :: Debug
+initDebug = 0
+
+resetDebug :: RendererState -> Effect Unit
+resetDebug (RendererState r) = Ref.write initDebug r.debug
+
+debugInfo :: RendererState -> Effect Unit
+debugInfo (RendererState rs) = do
+  y <- Ref.read rs.debug
+  let _ = spy "d" y
+  pure unit
+
+note :: RendererState -> Effect Unit
+note (RendererState rs) = Ref.modify_ (\x -> x + 1) rs.debug
 
 --------------------------------------------------------------------------------
 -- Screen caching and restoring ------------------------------------------------
@@ -138,7 +155,7 @@ drawImageTemp rs img rect = do
 fillRectTemp :: RendererState -> Rectangle -> Color -> Effect Unit
 fillRectTemp rs rect color = do
   fillRect rs rect color
-  queueRestore rs rect{width = rect.width +1.0, height = rect.height + 1.0 }
+  queueRestore rs rect{width = rect.width + 1.0, height = rect.height + 1.0 }
 
 --------------------------------------------------------------------------------
 
@@ -149,17 +166,20 @@ newRendererState cvars = do
   toRestore <- Ref.new []
   sid <- screenImageData cvars
   screenCache <- Ref.new sid
+  debug <- Ref.new initDebug
   pure $ RendererState
     { cvars
     , gameStateId
     , uiStateId
     , toRestore
     , screenCache
+    , debug
     }
 
 draw :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
 draw t uis@(UIState {timestamp, gsTimestamp}) gs@(GameState g) rs@(RendererState r) = do
   prevUI <- Ref.read r.uiStateId
+  resetDebug rs
   restoreAll rs
   let uiDirty = maybe true ((>) timestamp) prevUI
   drawCenterPane t uis gs rs
@@ -169,6 +189,8 @@ draw t uis@(UIState {timestamp, gsTimestamp}) gs@(GameState g) rs@(RendererState
     Ref.write (Just timestamp) r.uiStateId
   drawHighlights t uis rs
   drawDraggedOrgan uis gs rs
+  debugInfo rs
+
 
 drawPlayerBoard :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
 drawPlayerBoard t uis (GameState {playerHealth}) rs = do
@@ -177,7 +199,7 @@ drawPlayerBoard t uis (GameState {playerHealth}) rs = do
       playerOrgans = getOrgans playerBoard
       anchor = let {x,y} = playerBoardRect in V{x,y}
   clear rs leftPaneRect
-  drawText rs (show playerHp) (V{ x:10.0, y:0.0 })
+  drawText rs (show playerHp) (V{ x:tileSize, y:0.0 })
   drawImage rs "heart.png" { x:0.0, y: 0.0, width: tileSize, height: tileSize }
   drawBoardBase rs playerBoard playerBoardRect
   for_ playerOrgans.intact \(Tuple organ bc) ->
@@ -192,7 +214,7 @@ drawCenterPane
   gs@(GameState {availableOrgans})
   rs@(RendererState r) = do
   prevGS <- Ref.read r.gameStateId
-  let gsDirty = maybe true ((>) $ gsTimestamp) prevGS
+  let gsDirty = maybe true ((>) $ gsTimestamp) (prevGS)
   case isSurgeryLevel gs of
        false -> do
          when gsDirty $ do
@@ -312,7 +334,7 @@ drawRightPane t (UIState{rightPaneTarget}) (GameState gs) vars = do
                   , y: targetBoardContainerRect.y -- for column clues
                   , width: tileSize, height: tileSize }
                 drawText vars (show h.hpCount) -- TODO: move for column clues
-                  (V { x: targetBoardContainerRect.x + 10.0
+                  (V { x: targetBoardContainerRect.x + tileSize
                   , y: targetBoardContainerRect.y
                   })
                 drawBoardBase vars h.board targetBoardRect
@@ -393,10 +415,10 @@ foreign import setTextBaselineHanging :: Canvas.Context2D -> Effect Unit
 drawColorText :: RendererState -> String -> Color -> Vector Number -> Effect Unit
 drawColorText (RendererState {cvars}) string (Color c) (V loc) = do
   ctx <- Canvas.getContext2D cvars.canvas
-  Canvas.setFont ctx "10px CapitalHillMono"
+  Canvas.setFont ctx (show tileSize <> "px CapitalHillMono")
   setTextBaselineHanging ctx
   Canvas.setFillStyle ctx c
-  Canvas.fillText ctx string (loc.x + 2.0) (loc.y + 2.0)
+  Canvas.fillText ctx string (loc.x + 5.0) (loc.y + 5.0)
 
 wrapText
   :: RendererState
@@ -424,7 +446,8 @@ dirtyCheck dirty target = any (intersectRect target) dirty
 -}
 
 drawImage :: RendererState -> String -> Rectangle -> Effect Unit
-drawImage (RendererState {cvars: { canvas, imageData }}) path {x,y, width, height} = do
+drawImage r@(RendererState {cvars: { canvas, imageData }}) path {x,y, width, height} = do
+  note r
   ctx <- Canvas.getContext2D canvas
   imageMap <- Ref.read imageData.index
   images <- Ref.read imageData.array
@@ -436,7 +459,8 @@ drawImage (RendererState {cvars: { canvas, imageData }}) path {x,y, width, heigh
        Just img -> Canvas.drawImageScale ctx img x y width height
 
 drawImageFull :: RendererState -> String -> Rectangle -> Rectangle -> Effect Unit
-drawImageFull (RendererState {cvars: { canvas, imageData }}) path s d = do
+drawImageFull r@(RendererState {cvars: { canvas, imageData }}) path s d = do
+  note r
   ctx <- Canvas.getContext2D canvas
   imageMap <- Ref.read imageData.index
   images <- Ref.read imageData.array
