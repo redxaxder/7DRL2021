@@ -6,6 +6,7 @@ import Data.Either (either)
 import Data.Array as Array
 import Data.Map as Map
 import Data.Int as Int
+import Data.Tuple as Tuple
 import Data.DateTime.Instant (instant, unInstant)
 import Data.Time.Duration (Milliseconds (..))
 import Control.Alt ((<|>))
@@ -32,17 +33,15 @@ import Data.Board
   , extent
   , Health (..)
   , organAt
-  , canInsertOrgan
-  , isValidBoardCoord
   )
 import Data.Terrain (Terrain)
-import Data.Tuple as Tuple
 import GameState
   ( GameState (..)
   , GameAction (..)
   , FailedAction (..)
   , getTargetAtPosition
   , isSurgeryLevel
+  , canInstallOrgan
   , Target (..)
   , Event (..)
   )
@@ -155,8 +154,9 @@ surgeryUI uis gs@(GameState g) = do
                         dragOrgan time pointerId organ location uis gs
                     let newUIS = setDirtyAll t uis
                     --we've finished dragging, but where did we end up?
-                    case locate (location + dragOffset) of
-                         PlayerBoard pb ->
+                    case organDragLoc (Tuple.snd organ) dragOffset of
+                         -- locate (location + dragOffset) of
+                         Just pb ->
                            tryInstallOrgan t pb organ newUIS gs
                          _ -> runUI newUIS gs
            PlayerBoard p ->
@@ -273,16 +273,6 @@ tryAttack t pos uis gs =
   case getTarget uis of
        Nothing -> runUI uis gs
        Just tid -> doAction (Attack pos tid) t uis gs
-
-canInstallOrgan :: Vector Int -> InternalOrgan -> GameState -> Boolean
-canInstallOrgan pos organ (GameState g) =
- let bag = g.playerHealth
-       # un Health
-       # _.board
-       # un Board
-       # _.organs
-     o = Tuple.fst organ
-  in canInsertOrgan pos o bag && all isValidBoardCoord (extent o pos)
 
 tryInstallOrgan :: Instant -> Vector Int -> InternalOrgan
     -> UIState -> GameState -> UI Unit

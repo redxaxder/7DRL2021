@@ -44,8 +44,7 @@ canInsertOrgan pos organ@(Organ (OrganSize w h) _) bag =
    in not $ any isJust lookups
 
 removeOrganAt :: BoardCoord -> OrganBag -> OrganBag
-removeOrganAt p bag = foldl (\b x -> RevMap.delete x b) bag $
-  organExtent p bag
+removeOrganAt p bag = foldl (\b x -> RevMap.delete x b) bag $ organExtent p bag
 
 organAt :: BoardCoord -> OrganBag -> Maybe InternalOrgan
 organAt = RevMap.lookup

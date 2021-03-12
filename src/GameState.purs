@@ -5,6 +5,7 @@ import Framework.Direction (Direction, move)
 import Data.Array as Array
 import Data.Set as Set
 import Data.Map as Map
+import Data.Tuple as Tuple
 import Data.LinearIndex (LinearIndex (..))
 import Data.LinearIndex as LI
 import Data.FoldableWithIndex (findWithIndex)
@@ -26,6 +27,10 @@ import Data.Board
   , insertOrgan
   , Health(..)
   , randomUninjuredSpace
+  , canInsertOrgan
+  , removeOrganAt
+  , isValidBoardCoord
+  , extent
   , injure
   )
 import Data.Enemy
@@ -153,6 +158,12 @@ handleAction (GameState gs) a@(Attack bc eid) =
     Just enemy -> Right $ reportEvent (PlayerAttacked eid)
         $ handleEnemyInjury (GameState gs) enemy eid bc
         # enemyTurn
+handleAction g a@(InstallOrgan organ bc) =
+  if canInstallOrgan bc organ g
+    then Right $ let _ = spy "b" "b" in g
+               # installOrgan bc (Tuple.fst organ)
+               # removeAvailableOrgan organ
+    else Left FailedInstall
 handleAction (GameState gs) _ = Right $ GameState gs
 
 handleEnemyInjury :: GameState -> Enemy -> EnemyId -> BoardCoord -> GameState
@@ -259,6 +270,7 @@ data GameAction =
 data FailedAction =
   FailedAction Direction
   | FailedAttack
+  | FailedInstall
 
 enemyTurn :: GameState -> GameState
 enemyTurn g@(GameState gs) = foldrWithIndex enemyAction g gs.enemies
@@ -290,3 +302,26 @@ enemyAttack g eid = withRandom go g
        # if newHealth.hpCount <= 0
          then reportEvent PlayerDied
          else reportEvent (EnemyAttacked eid attack)
+
+canInstallOrgan :: Vector Int -> InternalOrgan -> GameState -> Boolean
+canInstallOrgan pos organ (GameState g) =
+ let bag = g.playerHealth
+       # un Health
+       # _.board
+       # un Board
+       # _.organs
+     o = Tuple.fst organ
+  in canInsertOrgan pos o bag && all isValidBoardCoord (extent o pos)
+
+installOrgan :: BoardCoord -> Organ -> GameState -> GameState
+installOrgan pos organ (GameState g) =
+  let health = un Health g.playerHealth
+      board = un Board health.board
+      newBag = insertOrgan pos organ board.organs
+      newBoard = board {organs = newBag}
+   in GameState g{playerHealth = mkHealth (Board newBoard)}
+
+removeAvailableOrgan :: InternalOrgan -> GameState -> GameState
+removeAvailableOrgan organ (GameState gs) = GameState gs
+  { availableOrgans = removeOrganAt (Tuple.snd organ) gs.availableOrgans }
+

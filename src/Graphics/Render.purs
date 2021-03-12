@@ -79,8 +79,6 @@ newtype RendererState = RendererState
   { cvars :: FCanvas.Vars
   , gameStateId :: Ref (Maybe Instant)
   , uiStateId :: Ref (Maybe Instant)
-  , prevDraw :: Ref (Maybe Instant)
-  , prevDrag :: Ref (Maybe OrganDrag)
   , toRestore :: Ref (Array Rectangle)
   , screenCache :: Ref Canvas.ImageData
   }
@@ -148,8 +146,6 @@ newRendererState :: FCanvas.Vars -> Effect RendererState
 newRendererState cvars = do
   gameStateId <- Ref.new Nothing
   uiStateId <- Ref.new Nothing
-  prevDraw <- Ref.new Nothing
-  prevDrag <- Ref.new Nothing
   toRestore <- Ref.new []
   sid <- screenImageData cvars
   screenCache <- Ref.new sid
@@ -157,14 +153,12 @@ newRendererState cvars = do
     { cvars
     , gameStateId
     , uiStateId
-    , prevDraw
-    , prevDrag
     , toRestore
     , screenCache
     }
 
 draw :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
-draw t uis@(UIState {timestamp, gsTimestamp}) gs rs@(RendererState r) = do
+draw t uis@(UIState {timestamp, gsTimestamp}) gs@(GameState g) rs@(RendererState r) = do
   prevUI <- Ref.read r.uiStateId
   restoreAll rs
   let uiDirty = maybe true ((>) timestamp) prevUI
@@ -175,7 +169,6 @@ draw t uis@(UIState {timestamp, gsTimestamp}) gs rs@(RendererState r) = do
     Ref.write (Just timestamp) r.uiStateId
   drawHighlights t uis rs
   drawDraggedOrgan uis gs rs
-  Ref.write (Just t) r.prevDraw
 
 drawPlayerBoard :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
 drawPlayerBoard t uis (GameState {playerHealth}) rs = do

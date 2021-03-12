@@ -109,7 +109,10 @@ cleanupDeleted k mayv m = fromMaybe m do
 del ::forall k. Eq k => k -> Array k -> Maybe (Array k)
 del x xs = case Array.elemIndex x xs of
                 Nothing -> Just xs
-                Just i -> Array.deleteAt i xs
+                Just i -> case Array.deleteAt i xs of
+                               Just [] -> Nothing
+                               Nothing -> Nothing
+                               x -> x
 
 
 ---------------------------------------------------------------------------------
