@@ -197,13 +197,17 @@ enemyAttack (GameState gs) eid =
 
 randomSpace :: Board -> GameState -> Tuple BoardCoord R.Gen
 randomSpace (Board b) (GameState gs) =
-  let 
-    xRand :: { result :: Int, nextGen :: R.Gen }
-    xRand = R.runRandom (R.intRange 0 7) gs.rng
-    yRand :: { result :: Int, nextGen :: R.Gen }
-    yRand = R.runRandom (R.intRange 0 7) xRand.nextGen
-    attackCoord = V { x: xRand.result, y: yRand.result }
-  in Tuple attackCoord yRand.nextGen
+  let
+    cart :: Array (Vector Int)
+    cart = do
+      x <- Array.range 0 6
+      y <- Array.range 0 6
+      pure $ V {x,y}
+    uninjured :: Array (Vector Int)
+    uninjured = Array.filter (\x -> not $ Set.member x b.injuries) cart
+    attack :: { result :: Vector Int, nextGen :: R.Gen }
+    attack= R.runRandom (R.unsafeElement uninjured) gs.rng
+  in Tuple attack.result attack.nextGen
 
 intVecToDir :: Vector Int -> Vector Int
 intVecToDir (V {x,y}) = V {x: abs' x, y: abs' y}
