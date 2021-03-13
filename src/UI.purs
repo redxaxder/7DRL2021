@@ -44,6 +44,7 @@ import GameState
   , canInstallOrgan
   , Target (..)
   , Event (..)
+  , Level (..)
   )
 
 import Data.Item (ItemId)
@@ -108,11 +109,13 @@ initUIState (GameState {p}) = do
     }
 
 runUI :: UIState -> GameState -> UI Unit
-runUI uis gs =
+runUI uis (GameState gs) =
   let u = clearHighlights uis in
-  case isSurgeryLevel gs of
-  true -> surgeryUI u gs
-  false -> mapUI u gs
+  case gs.level of
+  Surgery _ -> surgeryUI u (GameState gs)
+  Regular _ -> mapUI u (GameState gs)
+  NewGame -> newGameUI u (GameState gs)
+  Dead -> deadUI u (GameState gs)
 
 mapUI :: UIState -> GameState -> UI Unit
 mapUI uis@(UIState u) gs@(GameState g) = do
@@ -312,6 +315,28 @@ audioAction audio action time uis gs = do
       uis' = nextUI time gs result uis
              # enqueueAudio time audio
   runUI uis' gs'
+
+--------------------------------------------------------------------------------
+-- NewGame ---------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+newGameUI :: UIState -> GameState -> UI Unit
+newGameUI uis gs@(GameState g) = do
+  { time, value } <- F.input uis
+  case value of
+    KeyDown _ -> doAction StartNewGame time (setDirtyAll time uis) gs
+    _ -> runUI uis gs
+
+--------------------------------------------------------------------------------
+-- Death -----------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+deadUI :: UIState -> GameState -> UI Unit
+deadUI uis gs@(GameState g) = do
+  { time, value } <- F.input uis
+  case value of
+    KeyDown _ -> doAction StartNewGame time (setDirtyAll time uis) gs
+    _ -> runUI uis gs
 
 --------------------------------------------------------------------------------
 
