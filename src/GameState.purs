@@ -337,7 +337,7 @@ genNewMap = withRandom $ \(GameState gs) -> do
              , minBlock: 3
              , maxBlock: 8
              }
-  {rooms, entrance,exit,doors} <-  G.generateMapFull conf
+  { rooms, entrance,exit,doors } <-  G.generateMapFull conf
   let terrain = bareMap
               # carveRooms rooms
               # Terrain.placeDoors doors
@@ -594,11 +594,14 @@ healMany :: Item -> GameState -> R.Random GameState
 healMany (Item i) (GameState gs) =
   let
     tag = i.tag
-  in case tag of
-    HealthPickup n -> do
-      let (Health h) = gs.playerHealth
-      let (Board b) = h.board
-      let nHeal = min n $ Set.size b.injuries
-      newGs <- foldM (\g _ -> healOne g) (GameState gs) $ Array.range 1 n
-      pure newGs
-    _ -> pure $ GameState gs
+    (Health h) = gs.playerHealth
+  in if h.hpCount > 0
+     then pure $ GameState gs
+     else case tag of
+       HealthPickup n -> do
+         let (Health h) = gs.playerHealth
+         let (Board b) = h.board
+         let nHeal = min n $ Set.size b.injuries
+         newGs <- foldM (\g _ -> healOne g) (GameState gs) $ Array.range 1 n
+         pure newGs
+       _ -> pure $ GameState gs
