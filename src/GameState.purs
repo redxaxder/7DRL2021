@@ -606,17 +606,20 @@ removeOrgan pos (GameState g) =
    in GameState g{playerHealth = mkHealth (Board newBoard)}
 
 healOne :: GameState -> R.Random GameState
-healOne (GameState g) =
+healOne gs@(GameState g) =
   let
     (Health h) = g.playerHealth
     (Board b) = h.board
     hp = h.hpCount
   in do
-    bc <- randomInjuredSpace (Board b)
-    let newI = Set.delete bc b.injuries
-    let newB = Board b { injuries = newI }
-    let newH = Health h { hpCount = hpCount newB, board = newB}
-    pure $ GameState g { playerHealth = newH }
+    mbc <- randomInjuredSpace (Board b)
+    case mbc of
+         Nothing -> pure gs
+         Just bc -> do
+            let newI = Set.delete bc b.injuries
+            let newB = Board b { injuries = newI }
+            let newH = Health h { hpCount = hpCount newB, board = newB}
+            pure $ GameState g { playerHealth = newH }
 
 healMany :: Item -> GameState -> R.Random GameState
 healMany (Item i) (GameState gs) =
