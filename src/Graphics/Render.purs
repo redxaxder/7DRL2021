@@ -37,14 +37,11 @@ import Framework.Render.Canvas as FCanvas
 
 import GameState
   ( GameState (..)
-  , Target (..)
   , isSurgeryLevel
-  , getTargetAtPosition
   )
 import UI
   ( UIState (..)
   , RightPane (..)
-  , OrganDrag
   , tileSize
   , screen
   , centerPaneRect
@@ -56,7 +53,6 @@ import UI
   , targetBoardRect
   )
 import Framework.Render.Core (Rectangle, Image (..))
-import Data.Position (Position (..))
 
 import Data.Enemy
   ( Enemy(..)

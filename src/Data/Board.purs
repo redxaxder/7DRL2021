@@ -159,9 +159,31 @@ newtype Health = Health
   , board :: Board
   }
 
+freshHealth :: Health
+freshHealth =
+  Health
+  { hpCount: 0
+  , board: Board
+    { injuries: mempty
+    , organs: emptyBag
+    }
+  }
+
 injure :: BoardCoord -> Health -> Health
 injure v (Health h) =
   let board = injureBoard v h.board
    in Health { hpCount: hpCount board, board }
+
+injureMulti :: Array BoardCoord -> Health -> Health
+injureMulti vs h = foldr injure h vs
+
+addOrgan :: BoardCoord -> Organ -> Health -> Health
+addOrgan pos organ (Health {board: Board b}) =
+  let newBag = insertOrgan pos organ b.organs
+      b' = Board b{organs = newBag}
+   in Health {board:b', hpCount: hpCount b'}
+
+addOrgans :: Array BoardCoord -> Organ -> Health -> Health
+addOrgans poss organ health = foldr (\pos h -> addOrgan pos organ h) health poss
 
 derive instance newtypeHealth :: Newtype Health _
