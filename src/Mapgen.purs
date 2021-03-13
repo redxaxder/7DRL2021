@@ -287,10 +287,12 @@ mapEdgeAdjacenciesForBlock :: Block -> Array (Vector Int)
 mapEdgeAdjacenciesForBlock b =
   if  b.x == 1
      || b.x + b.width == 18
-  then let ys = Array.range b.y (b.y+b.width)
+  then let ys = Array.range b.y (b.y+b.height)
            x = if b.x == 1 then 0 else 19
        in ys <#> \y -> V{x,y}
-  else [ V{x:1,y:1} ]
+  else let xs = Array.range b.x (b.x+b.width)
+           y = if b.y == 1 then 0 else 19
+       in xs <#> \x -> V{x,y}
 
 mapEdgeAdjacencies :: Array Block -> Array (Vector Int)
 mapEdgeAdjacencies blocks = Array.concat $ map mapEdgeAdjacenciesForBlock (Array.filter blockOnEdge blocks)
