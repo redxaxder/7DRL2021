@@ -619,13 +619,12 @@ healMany (Item i) (GameState gs) =
   let
     tag = i.tag
     (Health h) = gs.playerHealth
-  in if h.hpCount > 0
-     then pure $ GameState gs
-     else case tag of
+    (Board b) = h.board
+  in if (Set.size b.injuries) > 0
+     then case tag of
        HealthPickup n -> do
-         let (Health h) = gs.playerHealth
-         let (Board b) = h.board
          let nHeal = min n $ Set.size b.injuries
          newGs <- foldM (\g _ -> healOne g) (GameState gs) $ Array.range 1 n
          pure newGs
        _ -> pure $ GameState gs
+     else pure $ GameState gs
