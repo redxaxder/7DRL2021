@@ -8,6 +8,7 @@ import Data.RevMap as RevMap
 import Data.Set as Set
 import Random as R
 import Framework.Direction (move, directions8)
+import Data.Item (Item(..))
 
 data OrganSize = OrganSize Int Int
 data OrganType = Hp | PlayerHeartLarge
@@ -147,6 +148,11 @@ randomUninjuredSpace (Board b) =
     uninjured :: Array (Vector Int)
     uninjured = Array.filter (\x -> not $ Set.member x b.injuries) cart
    in R.unsafeElement uninjured
+
+randomInjuredSpace :: Board -> R.Random BoardCoord
+randomInjuredSpace (Board b) =
+  let injured = Set.toUnfoldable b.injuries
+  in R.unsafeElement injured
 
 newtype Health = Health
   { hpCount :: Int
