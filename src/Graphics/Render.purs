@@ -207,7 +207,7 @@ drawPlayerBoard t uis (GameState {playerHealth}) rs = do
       playerOrgans = getOrgans playerBoard
       anchor = let {x,y} = playerBoardRect in V{x,y}
   clear rs leftPaneRect
-  drawText rs (show playerHp) (V{ x:tileSize, y:0.0 })
+  drawText rs tileSize (show playerHp) (V{ x:tileSize, y:0.0 })
   drawImage rs "heart.png" { x:0.0, y: 0.0, width: tileSize, height: tileSize }
   drawBoardBase rs playerBoard playerBoardRect
   for_ playerOrgans.intact \(Tuple organ bc) ->
@@ -237,12 +237,11 @@ drawCenterPane
              drawOrgan true rs organ (rectPos centerPaneRect + fromGrid position)
            let x = centerPaneRect.x
                y = centerPaneRect.y + centerPaneRect.height - tileSize * 4.0
-           drawText rs "Drag parts into your health area to install them"
-             (V{x,y})
-           drawText rs "Click on parts in your health to destroy them"
-             (V{x,y: y + tileSize})
-           drawText rs "Press any key to go to the next level"
-             (V{x,y: y + tileSize * 2.0})
+               size = tileSize / 2.0
+               say s p = drawText rs size s p
+           say "Drag parts into your health area to install them" (V{x,y})
+           say "Click on parts in your health to destroy them" (V{x,y: y + size})
+           say "Press any key to go to the next level" (V{x,y: y + size * 2.0})
            cacheScreen rs
   Ref.write (Just gsTimestamp) r.gameStateId
 
@@ -358,7 +357,7 @@ drawRightPane t (UIState{rightPaneTarget}) (GameState gs) vars = do
                   { x: targetBoardContainerRect.x --TODO: move these outside
                   , y: targetBoardContainerRect.y -- for column clues
                   , width: tileSize, height: tileSize }
-                drawText vars (show h.hpCount) -- TODO: move for column clues
+                drawText vars tileSize (show h.hpCount) -- TODO: move for column clues
                   (V { x: targetBoardContainerRect.x + tileSize
                   , y: targetBoardContainerRect.y
                   })
@@ -424,23 +423,23 @@ drawInjury :: RendererState -> Organ -> Vector Number -> Effect Unit
 drawInjury = drawOrgan false
 
 drawClue :: RendererState -> Clue -> Vector Number -> Effect Unit
-drawClue rs (HpClue i) p =    drawColorText rs (show i) (Color "#a00") p
-drawClue rs (ArmorClue i) p = drawColorText rs (show i) (Color "blue") p
-drawClue rs (MixedClue i) p = drawColorText rs (show i) (Color "purple") p
-drawClue rs EmptyClue p =     drawColorText rs "0" (Color "#777") p
-drawClue rs ConcealedClue p = drawColorText rs "?" (Color "#333") p
+drawClue rs (HpClue i) p =    drawColorText rs tileSize (show i) (Color "#a00") p
+drawClue rs (ArmorClue i) p = drawColorText rs tileSize (show i) (Color "blue") p
+drawClue rs (MixedClue i) p = drawColorText rs tileSize (show i) (Color "purple") p
+drawClue rs EmptyClue p =     drawColorText rs tileSize "0" (Color "#777") p
+drawClue rs ConcealedClue p = drawColorText rs tileSize "?" (Color "#333") p
 
-drawText :: RendererState -> String -> Vector Number -> Effect Unit
-drawText vars string loc =
-  drawColorText vars string (Color "white") loc
+drawText :: RendererState -> Number -> String -> Vector Number -> Effect Unit
+drawText vars size string loc =
+  drawColorText vars size string (Color "white") loc
 
 newtype Color = Color String
 foreign import setTextBaselineHanging :: Canvas.Context2D -> Effect Unit
 
-drawColorText :: RendererState -> String -> Color -> Vector Number -> Effect Unit
-drawColorText (RendererState {cvars}) string (Color c) (V loc) = do
+drawColorText :: RendererState -> Number -> String -> Color -> Vector Number -> Effect Unit
+drawColorText (RendererState {cvars}) size string (Color c) (V loc) = do
   ctx <- Canvas.getContext2D cvars.canvas
-  Canvas.setFont ctx (show tileSize <> "px CapitalHillMono")
+  Canvas.setFont ctx (show (Int.round size) <> "px CapitalHillMono")
   setTextBaselineHanging ctx
   Canvas.setFillStyle ctx c
   Canvas.fillText ctx string (loc.x + 5.0) (loc.y + 5.0)
@@ -453,7 +452,7 @@ wrapText
   -> Effect Unit
 wrapText vars string loc _maxWidth =
   --let splits = String.split (Pattern " ") string
-  drawText vars string loc
+  drawText vars tileSize string loc
 
 {-
 dirtyCheck :: Array Rectangle -> Rectangle -> Boolean

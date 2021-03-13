@@ -22,6 +22,7 @@ import Data.Terrain
   , arena
   , bareMap
   , carveRooms
+  , Room
   )
 import Data.Terrain as Terrain
 import Solver as Solver
@@ -56,6 +57,7 @@ import Data.Enemy
   , injureEnemyMulti
   )
 import Random.Gen as R
+import Random.Gen (Random)
 import Data.Item
   ( Item(..)
   , ItemId
@@ -324,6 +326,12 @@ revealRooms = withRandom \g@(GameState gs) ->
                                    gs.rooms
                        }
           # reportEvent (RoomRevealed r.room)
+
+spawnEnemies :: GameState -> Room -> Random GameState
+spawnEnemies g@(GameState gs) room = pure g
+
+spawnItems :: GameState -> Room -> Random GameState
+spawnItems g@(GameState gs) room = pure g
 
 data Level = Regular Int | Surgery Int
 
