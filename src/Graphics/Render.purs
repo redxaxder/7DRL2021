@@ -247,7 +247,7 @@ drawCenterPane
 centerPaneMap :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
 centerPaneMap t (UIState uis) (GameState gs) rs = do
   clear rs centerPaneRect
-  for_ gs.rooms \{perimeter, visible} -> when visible $
+  for_ gs.rooms \ {perimeter, visible} -> when visible $
     for_ (blockPositions $ perimeter) \pos ->
       let V p = pos
           terrain = fromMaybe Floor $ LI.index gs.terrain pos
@@ -272,7 +272,8 @@ drawCenterPaneAnimations
   forWithIndex_ g.items \iid item@(Item{location}) ->
     let rect = animItemRect t iid item uis gs
         image = itemImage item
-        itemLifetime = 10
+        (Item i) = item
+        itemLifetime = i.decay
      in when (blink t itemLifetime) $ drawImageTemp r image rect
   forWithIndex_ g.enemies \eid nme ->
     let rect = animEnemyRect t eid nme uis gs
