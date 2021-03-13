@@ -11,7 +11,36 @@ import Framework.Direction (move, directions8)
 import Data.Item (Item(..))
 
 data OrganSize = OrganSize Int Int
-data OrganType = Hp | PlayerHeartLarge
+data OrganType =
+    Hp
+  | PlayerHeartLarge
+  | HumanEye
+  | EyeRed
+  | EyeBlue
+  | EyeHoriz
+  | EyeVert
+  | Armor
+
+i :: String -> String -> { base :: String, hurt :: String }
+i base hurt = { base, hurt }
+organImages :: OrganType -> { base :: String, hurt :: String }
+organImages Hp = i "heart.png" "injuredheart.png"
+organImages PlayerHeartLarge = i "Heart4.png" "Heart4injured.png"
+organImages HumanEye         = i "Eye1.png" "Eye1Hurt.png"
+organImages EyeRed           = i "Eye2.png" "Eye2Hurt.png"
+organImages EyeBlue          = i "Eye3.png" "Eye3Hurt.png"
+organImages EyeHoriz         = i "Eye4.png" "Eye4Hurt.png"
+organImages EyeVert          = i "Eye5.png" "Eye5Hurt.png"
+organImages Armor            = i "Armor5.png" "Armor5Hurt.png"
+
+
+
+{-
+organImage Hp true  = "heart.png"
+organImage Hp false = "injuredheart.png"
+organImage PlayerHeartLarge true = "Heart4.png"
+organImage PlayerHeartLarge false = "Heart4injured.png"
+  -}
 
 data Organ = Organ OrganSize OrganType
 
@@ -97,6 +126,7 @@ isInside (V{x: px,y: py})
 isHpOrgan :: Organ -> Boolean
 isHpOrgan (Organ _ Hp) = true
 isHpOrgan (Organ _ PlayerHeartLarge) = true
+isHpOrgan (Organ _ _) = false
 
 getClue :: BoardCoord -> Board -> Clue
 getClue p b =

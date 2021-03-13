@@ -17,6 +17,10 @@ import Framework.Direction
   , right
   , up
   , move
+  , downLeft
+  , downRight
+  , upLeft
+  , upRight
   , Direction
   , dirVector
   , opposite
@@ -425,6 +429,30 @@ getDir "ArrowLeft" = Just left
 getDir "ArrowRight" = Just right
 getDir "ArrowDown" = Just down
 getDir "ArrowUp" = Just up
+getDir "KeyH" = Just left
+getDir "KeyJ" = Just down
+getDir "KeyK" = Just up
+getDir "KeyL" = Just right
+getDir "KeyY" = Just upLeft
+getDir "KeyU" = Just upRight
+getDir "KeyB" = Just downLeft
+getDir "KeyN" = Just downRight
+getDir "NumPad1" = Just downLeft
+getDir "NumPad2" = Just down
+getDir "NumPad3" = Just downRight
+getDir "NumPad4" = Just left
+getDir "NumPad6" = Just right
+getDir "NumPad7" = Just upLeft
+getDir "NumPad8" = Just up
+getDir "NumPad9" = Just upRight
+getDir "KeyZ" = Just downLeft
+getDir "KeyX" = Just down
+getDir "KeyC" = Just downRight
+getDir "KeyA" = Just left
+getDir "KeyD" = Just right
+getDir "KeyQ" = Just upLeft
+getDir "KeyW" = Just up
+getDir "KeyE" = Just upRight
 getDir _ = Nothing
 
 type Offset = Animating (Vector Number)
@@ -677,6 +705,19 @@ imagePaths =
   , "placeholder.png"
   , "doorclosed.png"
   , "dooropen.png"
+  , "drone.png"
+  , "Eye1.png"
+  , "Eye1Hurt.png"
+  , "Eye2.png"
+  , "Eye2Hurt.png"
+  , "Eye3.png"
+  , "Eye3Hurt.png"
+  , "Eye4.png"
+  , "Eye4Hurt.png"
+  , "Eye5.png"
+  , "Eye5Hurt.png"
+  , "Armor5.png"
+  , "Armor5Hurt.png"
   ]
 
 audioPaths :: Array String

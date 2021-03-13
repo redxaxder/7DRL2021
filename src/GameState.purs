@@ -54,12 +54,12 @@ import Data.Board
   , freshHealth
   , randomInjuredSpace
   )
+import Data.Enemy as Enemy
 import Data.Enemy
   ( Enemy(..)
   , EnemyTag(..)
   , EnemyId
   , EnemyStats
-  , stats
   , enemyOnSpace
   , recalculateClues
   , injureEnemy
@@ -440,8 +440,10 @@ addItem i (GameState gs) = GameState gs
 genEnemy :: Vector Int -> GameState -> Random Enemy
 genEnemy location (GameState gs)= do
   let d = levelDepth gs.level
-      tag = Roomba
-  health <- genHealth (stats tag)
+      candidates = Enemy.allEnemies
+                 # Array.filter (\x -> (Enemy.stats x).minDepth <= d)
+  tag <- R.unsafeElement candidates
+  health <- genHealth (Enemy.stats tag)
   pure $ Enemy {location, health, tag, clueCache: Map.empty }
        # recalculateClues
 
