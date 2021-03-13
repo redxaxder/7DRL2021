@@ -37,20 +37,40 @@ newtype Enemy = Enemy
   , tag :: EnemyTag
   }
 
-data EnemyTag = Roomba
+data EnemyTag =
+    Roomba
+  | Drone
 
-enemyName :: EnemyTag -> String
-enemyName Roomba = "murderous vacuum robot"
+allEnemies :: Array EnemyTag
+allEnemies =
+  [ Roomba
+  , Drone
+  ]
+
+name :: Enemy -> String
+name (Enemy {tag}) = (stats tag).name
+
+image :: Enemy -> String
+image (Enemy {tag}) = (stats tag).image
 
 type EnemyStats =
-  { armor :: Int
+  { name :: String
+  , armor :: Int
   , hp :: Int
   , injuries :: Int
+  , minDepth :: Int
+  , attack :: Attack
+  , image :: String
   }
 
-s :: Int -> Int -> Int -> EnemyStats
-s hp armor injuries = {hp, armor, injuries}
+data Attack = Box Int Int
+
+s :: Int -> Int -> Int -> Int -> Attack -> String -> String -> EnemyStats
+s hp armor injuries minDepth attack name image =
+  {name, hp, armor, injuries, minDepth, attack, image}
+
 stats :: EnemyTag -> EnemyStats
-stats Roomba = s 2 0 10
+stats Roomba = s  2  0  10  0  (Box 1 1) "murderous vacuum robot"  "roomba.png"
+stats Drone =  s  1  0  15  2  (Box 6 6)         "kamikaze drone"   "drone.png"
 
 type EnemyId = Int

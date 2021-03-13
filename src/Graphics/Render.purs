@@ -17,6 +17,8 @@ import Effect.Ref (Ref)
 import Graphics.Canvas as Canvas
 import Data.Set as Set
 import Data.LinearIndex as LI
+import Data.Enemy as Enemy
+import Data.Board as Board
 import Data.Board
   ( Board(..)
   , Clue (..)
@@ -58,7 +60,6 @@ import Data.Enemy
   ( Enemy(..)
   , EnemyTag (..)
   , EnemyId
-  , enemyName
   )
 
 import Data.Item
@@ -277,7 +278,7 @@ drawCenterPaneAnimations
      in when (blink t itemLifetime) $ drawImageTemp r image rect
   forWithIndex_ g.enemies \eid nme ->
     let rect = animEnemyRect t eid nme uis gs
-        image = enemyImage nme
+        image = Enemy.image nme
      in drawImageTemp r image rect
 
 blink :: Instant -> Int -> Boolean
@@ -315,11 +316,8 @@ getHighlightColor t = Color $ "#ffffff" <> opacity
     # Int.floor
     # Int.toStringAs Int.hexadecimal
 
-enemyImage :: Enemy -> String
-enemyImage (Enemy {tag: Roomba}) = "roomba.png"
-
 itemImage :: Item -> String
-itemImage (Item {tag: HealthPickup _}) = "heart.png"
+itemImage (Item {tag: HealthPickup _}) = "heal.png"
 
 rectPos :: Rectangle -> Vector Number
 rectPos {x,y} = V {x,y}
@@ -356,7 +354,7 @@ drawRightPane t (UIState{rightPaneTarget}) (GameState gs) vars = do
        RPEnemy eid -> case Map.lookup eid gs.enemies of
               Nothing -> pure unit
               Just n@(Enemy e) -> do
-                let name = enemyName e.tag
+                let name = Enemy.name n
                     Health h = e.health
                     nameLoc = let {x,y} = rightPaneRect in V{x,y}
                 wrapText vars name nameLoc rightPaneRect.width
@@ -411,10 +409,8 @@ fromGrid :: Vector Int -> Vector Number
 fromGrid p = p <#> \x -> toNumber x * tileSize
 
 organImage :: OrganType -> Boolean -> String
-organImage Hp true  = "heart.png"
-organImage Hp false = "injuredheart.png"
-organImage PlayerHeartLarge true = "Heart4.png"
-organImage PlayerHeartLarge false = "Heart4injured.png"
+organImage ot true = (Board.organImages ot).base
+organImage ot false = (Board.organImages ot).hurt
 
 drawOrgan :: Boolean -> RendererState -> Organ -> Vector Number -> Effect Unit
 drawOrgan isIntact rs (Organ (OrganSize w h) organType) (V{x,y}) =

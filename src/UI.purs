@@ -652,6 +652,19 @@ imagePaths =
   , "placeholder.png"
   , "doorclosed.png"
   , "dooropen.png"
+  , "drone.png"
+  , "Eye1.png"
+  , "Eye1Hurt.png"
+  , "Eye2.png"
+  , "Eye2Hurt.png"
+  , "Eye3.png"
+  , "Eye3Hurt.png"
+  , "Eye4.png"
+  , "Eye4Hurt.png"
+  , "Eye5.png"
+  , "Eye5Hurt.png"
+  , "Armor5.png"
+  , "Armor5Hurt.png"
   ]
 
 audioPaths :: Array String
