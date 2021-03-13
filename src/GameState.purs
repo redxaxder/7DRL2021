@@ -190,6 +190,7 @@ handleAction g@(GameState gs) a@(Move dir) =
       false, _ -> Left (FailedAction dir)
       true,false -> Right $ (GameState gs {p = p'})
                       # reportEvent (PlayerMoved dir)
+                      # openDoorAt p'
                       # revealRooms
                       # recalculatePDMap
                       # enemyTurn
@@ -269,6 +270,14 @@ type RoomInfo =
   , perimeter :: Terrain.Room
   , visible :: Boolean
   }
+
+openDoorAt :: Vector Int -> GameState -> GameState
+openDoorAt p (GameState gs) =
+  let newTerrain = fromMaybe gs.terrain do
+                      t <-  LI.index gs.terrain p
+                      guard $ t == DoorClosed
+                      LI.insertAt p DoorOpen gs.terrain
+   in GameState gs{terrain = newTerrain}
 
 withRandom :: (GameState -> R.Random GameState) -> GameState -> GameState
 withRandom f gs@(GameState g) =
