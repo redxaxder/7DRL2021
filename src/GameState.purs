@@ -176,7 +176,7 @@ isOpenDoor :: Vector Int -> LinearIndex Terrain -> Boolean
 isOpenDoor v t = (==) DoorOpen $ fromMaybe Floor (LI.index t v)
 
 step :: GameState -> GameAction -> Either FailedAction GameState
-step gs = handleAction (clearEvents <<< checkDeath $ gs)
+step gs = handleAction (clearEvents <<< checkDeath <<< cleanupItems <<< decayItems $ gs)
 
 checkDeath :: GameState -> GameState
 checkDeath (GameState gs) =
@@ -268,6 +268,14 @@ inWorldBounds (V{x,y}) (LinearIndex t) =
 
 useItem :: ItemId -> GameState -> GameState
 useItem iid (GameState gs) = GameState gs { items = Map.delete iid gs.items }
+
+decayItems :: GameState -> GameState
+decayItems (GameState gs) =
+  let newItems = map ( \(Item i) -> (Item i { decay = i.decay - 1 }) ) gs.items
+  in (GameState gs { items = newItems })
+
+cleanupItems :: GameState -> GameState
+cleanupItems (GameState gs) = GameState gs { items = Map.filter (\(Item i) -> i.decay > 0) gs.items }
 
 data Event =
     PlayerMoved Direction
