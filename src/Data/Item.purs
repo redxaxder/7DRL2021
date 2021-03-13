@@ -21,3 +21,6 @@ medium = 3
 
 weak :: Int
 weak = 1
+
+itemOnSpace :: Vector Int -> Item -> Boolean
+itemOnSpace v (Item i) = v == i.location
