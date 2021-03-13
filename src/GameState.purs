@@ -195,6 +195,7 @@ handleAction g@(GameState gs) a@(Move dir) =
       false, _, _ -> Left (FailedAction dir)
       true,false,false -> Right $ (GameState gs {p = p'})
                       # reportEvent (PlayerMoved dir)
+                      # revealRooms
                       # recalculatePDMap
                       # enemyTurn
       true,false,true -> Right $ (GameState gs {p = p'}) 
