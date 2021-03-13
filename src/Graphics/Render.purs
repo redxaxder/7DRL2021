@@ -39,6 +39,7 @@ import Framework.Render.Canvas as FCanvas
 
 import GameState
   ( GameState (..)
+  , Level (..)
   , isSurgeryLevel
   )
 import UI
@@ -219,18 +220,34 @@ drawCenterPane :: Instant -> UIState -> GameState -> RendererState -> Effect Uni
 drawCenterPane
   t
   uis@(UIState {gsTimestamp})
-  gs@(GameState {availableOrgans})
+  gs@(GameState {availableOrgans, level})
   rs@(RendererState r) = do
   prevGS <- Ref.read r.gameStateId
   let gsDirty = maybe true ((>) $ gsTimestamp) (prevGS)
-  case isSurgeryLevel gs of
-       false -> do
+  case level of
+       NewGame -> do
+         clear rs centerPaneRect
+         let x = centerPaneRect.x
+             y = centerPaneRect.y + centerPaneRect.height - tileSize * 4.0
+             size = tileSize / 2.0
+             say s p = drawText rs size s p
+         say "Press any key to start" (V{x,y})
+         cacheScreen rs
+       Dead -> do
+         clear rs centerPaneRect
+         let x = centerPaneRect.x
+             y = centerPaneRect.y + centerPaneRect.height - tileSize * 4.0
+             size = tileSize / 2.0
+             say s p = drawText rs size s p
+         say "You died" (V{x,y})
+         cacheScreen rs
+       Regular _ -> do
          when gsDirty $ do
            centerPaneMap t uis gs rs
            cacheScreen rs
            Ref.write (Just gsTimestamp) r.gameStateId
          drawCenterPaneAnimations t uis gs rs
-       true -> do
+       Surgery _ -> do
          when gsDirty do
            clear rs centerPaneRect
            for_ (organArray availableOrgans) \(Tuple organ position) ->

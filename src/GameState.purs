@@ -75,8 +75,8 @@ import Data.Item
   , itemOnSpace
   )
 
-newState :: Effect GameState
-newState = do
+initState :: Effect GameState
+initState = do
   random <- R.newGen
   pure $ GameState
     { p: startingPos
@@ -84,7 +84,7 @@ newState = do
     , playerDistanceMap: Map.empty
     , enemies: Map.empty -- exampleEnemies
     , items: Map.empty -- exampleItems
-    , level: Regular 1
+    , level: NewGame
     , availableOrgans: exampleOrgans
     , events: []
     , rng: random
@@ -92,6 +92,25 @@ newState = do
     , rooms: Map.empty
     , nextId: 100
     }
+    # genNewMap
+    # revealRooms
+    # recalculatePDMap
+
+die :: GameState -> GameState
+die (GameState gs) = (GameState gs
+    { p = startingPos
+    , playerHealth = freshPlayerHealth
+    , playerDistanceMap = Map.empty
+    , enemies = Map.empty -- exampleEnemies
+    , items = Map.empty -- exampleItems
+    , level = Dead
+    , availableOrgans = exampleOrgans
+    , events = []
+    , rng = gs.rng
+    , terrain = bareMap
+    , rooms = Map.empty
+    , nextId = gs.nextId
+    })
     # genNewMap
     # revealRooms
     # recalculatePDMap
@@ -191,7 +210,7 @@ checkDeath (GameState gs) =
   let
     (Health h) = gs.playerHealth
   in if h.hpCount <= 0
-     then GameState gs {p = startingPos, playerHealth = freshPlayerHealth, enemies = exampleEnemies, level = Regular 1 }
+     then die (GameState gs)
      else GameState gs
 
 handleAction :: GameState -> GameAction -> Either FailedAction GameState
@@ -236,6 +255,7 @@ handleAction g a@(InstallOrgan organ bc) =
     else Left FailedInstall
 handleAction g (RemoveOrgan p) = Right $ g # removeOrgan p
 handleAction g FinishSurgery = Right $ goToNextLevel g
+handleAction g StartNewGame = Right $ goToNextLevel g
 handleAction (GameState gs) _ = Right $ GameState gs
 
 handleEnemyInjury :: GameState -> Enemy -> EnemyId -> BoardCoord -> GameState
@@ -447,7 +467,7 @@ addEnemy e (GameState gs) = GameState gs
   , nextId = gs.nextId + 1
   }
 
-data Level = Regular Int | Surgery Int
+data Level = Regular Int | Surgery Int | NewGame | Dead
 
 isSurgeryLevel :: GameState -> Boolean
 isSurgeryLevel (GameState {level: Surgery _}) = true
@@ -456,10 +476,14 @@ isSurgeryLevel _ = false
 nextLevel :: Level -> Level
 nextLevel (Regular i) = Surgery i
 nextLevel (Surgery i) = Regular (i+1)
+nextLevel NewGame = Regular 1
+nextLevel Dead = NewGame
 
 levelDepth :: Level -> Int
 levelDepth (Regular i) = i
 levelDepth (Surgery i) = i
+levelDepth NewGame = 0
+levelDepth Dead = -1
 
 goToNextLevel :: GameState -> GameState
 goToNextLevel (GameState gs) = GameState gs { level = nextLevel gs.level }
@@ -500,6 +524,7 @@ data GameAction =
   | InstallOrgan InternalOrgan BoardCoord
   | RemoveOrgan BoardCoord
   | FinishSurgery
+  | StartNewGame
 
 data FailedAction =
   FailedAction Direction

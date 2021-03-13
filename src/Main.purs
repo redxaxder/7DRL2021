@@ -19,14 +19,14 @@ import Input (Input, getInputs)
 
 import Graphics.Render (draw, RendererState, newRendererState)
 
-import GameState (GameState, GameAction, FailedAction, newState, step)
+import GameState (GameState, GameAction, FailedAction, initState, step)
 import UI (imagePaths, UIState, runUI, targetDimensions, initUIState, getAudio)
 
 main :: Effect Unit
 main = unsafePartial $ launchAff_ $ do
   liftEffect $ C.log "..."
   -- initialize canvas
-  init <- liftEffect $ newState
+  init <- liftEffect $ initState
   let { width, height } = targetDimensions
   cv <- fromJust <$> Canvas.init { width, height, canvasId: "canvas", imagePaths }
   ctx <- liftEffect $ newRendererState cv
