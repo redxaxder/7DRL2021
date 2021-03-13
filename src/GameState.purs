@@ -9,9 +9,10 @@ import Data.Array.NonEmpty as NonEmpty
 import Data.Set as Set
 import Data.Map as Map
 import Data.Tuple as Tuple
+import Data.List as List
 import Data.LinearIndex (LinearIndex (..))
 import Data.LinearIndex as LI
-import Data.Foldable (minimum)
+import Data.Foldable (minimum, foldM)
 import Data.FoldableWithIndex (findWithIndex)
 import Data.String as String
 import Data.String.CodeUnits (toCharArray)
@@ -35,11 +36,11 @@ import Data.Board
   , InternalOrgan
   , OrganSize(..)
   , OrganType(..)
-  , hpCount
   , OrganBag
+  , Health(..)
+  , hpCount
   , emptyBag
   , insertOrgan
-  , Health(..)
   , randomUninjuredSpace
   , canInsertOrgan
   , removeOrganAt
@@ -47,6 +48,7 @@ import Data.Board
   , isValidBoardCoord
   , extent
   , injure
+  , randomInjuredSpace
   )
 import Data.Enemy
   ( Enemy(..)
@@ -63,6 +65,7 @@ import Data.Item
   , ItemId
   , ItemTag (..)
   , medium
+  , itemOnSpace
   )
 
 newState :: Effect GameState
@@ -185,16 +188,25 @@ checkDeath (GameState gs) =
 
 handleAction :: GameState -> GameAction -> Either FailedAction GameState
 handleAction g@(GameState gs) a@(Move dir) =
-  let p' = move dir gs.p
-   in case isPassable p' g, isExit p' g of
-      false, _ -> Left (FailedAction dir)
-      true,false -> Right $ (GameState gs {p = p'})
+  let
+    p' = move dir gs.p
+    {item, iid} = getItem p' (GameState gs)
+   in case isPassable p' g, isExit p' g, isItem p' g of
+      false, _, _ -> Left (FailedAction dir)
+      true,false,false -> Right $ (GameState gs {p = p'})
+                      # reportEvent (PlayerMoved dir)
+                      # recalculatePDMap
+                      # enemyTurn
+      true,false,true -> Right $ (GameState gs {p = p'}) 
+                      # withRandom (healMany $ unsafeFromJust item)
+                      # useItem (unsafeFromJust iid)
                       # reportEvent (PlayerMoved dir)
                       # openDoorAt p'
                       # revealRooms
+                      # reportEvent (ItemUsed $ unsafeFromJust item)
                       # recalculatePDMap
                       # enemyTurn
-      true,true -> Right $ (GameState gs {p = p'})
+      true,true,_ -> Right $ (GameState gs {p = p'})
                       # goToNextLevel
                       # reportEvent (PlayerMoved dir)
                       # genNewMap
@@ -238,9 +250,23 @@ isExit v (GameState gs) = case LI.index gs.terrain v of
   Just Exit -> true
   _ -> false
 
+isItem :: Vector Int -> GameState -> Boolean
+isItem v (GameState gs) = any (itemOnSpace v) gs.items
+
+getItem :: Vector Int -> GameState -> { item :: Maybe Item, iid :: Maybe ItemId }
+getItem v (GameState gs) =
+  let
+    newM = Map.filter (\(Item i) -> i.location == v) gs.items
+    item = List.head (Map.values newM)
+    iid = Array.head $ Set.toUnfoldable (Map.keys newM)
+  in { item, iid }
+
 inWorldBounds :: Vector Int -> LinearIndex Terrain -> Boolean
-inWorldBounds (V{x,y}) (LinearIndex t) =  -- TODO: fix this
+inWorldBounds (V{x,y}) (LinearIndex t) =
   0 <= x && x <= t.width - 1 && 0 <= y && y <= t.height - 1
+
+useItem :: ItemId -> GameState -> GameState
+useItem iid (GameState gs) = GameState gs { items = Map.delete iid gs.items }
 
 data Event =
     PlayerMoved Direction
@@ -250,6 +276,7 @@ data Event =
   | PlayerDied
   | EnemyDied EnemyId
   | RoomRevealed Terrain.Room
+  | ItemUsed Item
 
 newtype GameState = GameState
   { p :: Vector Int
@@ -480,3 +507,28 @@ removeOrgan pos (GameState g) =
       newHealth = foldr injure (mkHealth (Board newBoard)) spacesToInjure
    in GameState g{playerHealth = mkHealth (Board newBoard)}
 
+healOne :: GameState -> R.Random GameState
+healOne (GameState g) =
+  let
+    (Health h) = g.playerHealth
+    (Board b) = h.board
+    hp = h.hpCount
+  in do
+    bc <- randomInjuredSpace (Board b)
+    let newI = Set.delete bc b.injuries
+    let newB = Board b { injuries = newI }
+    let newH = Health h { hpCount = hpCount newB, board = newB}
+    pure $ GameState g { playerHealth = newH }
+
+healMany :: Item -> GameState -> R.Random GameState
+healMany (Item i) (GameState gs) =
+  let
+    tag = i.tag
+  in case tag of
+    HealthPickup n -> do
+      let (Health h) = gs.playerHealth
+      let (Board b) = h.board
+      let nHeal = min n $ Set.size b.injuries
+      newGs <- foldM (\g _ -> healOne g) (GameState gs) $ Array.range 1 n
+      pure newGs
+    _ -> pure $ GameState gs
