@@ -60,6 +60,12 @@ import Data.Enemy
   , enemyName
   )
 
+import Data.Item
+  ( Item(..)
+  , ItemId
+  , ItemTag(..)
+  )
+
 {-
 
 
@@ -265,6 +271,10 @@ drawCenterPaneAnimations
     let rect = animEnemyRect t eid nme uis gs
         image = enemyImage nme
      in drawImageTemp r image rect
+  forWithIndex_ g.items \iid item ->
+    let rect = animItemRect t iid item uis gs
+        image = itemImage item
+     in drawImageTemp r image rect
 
 drawDraggedOrgan :: UIState -> GameState -> RendererState -> Effect Unit
 drawDraggedOrgan (UIState{draggingOrgan}) gs rs@(RendererState r) = do
@@ -298,6 +308,9 @@ getHighlightColor t = Color $ "#ffffff" <> opacity
 enemyImage :: Enemy -> String
 enemyImage (Enemy {tag: Roomba}) = "roomba.png"
 
+itemImage :: Item -> String
+itemImage (Item {tag: HealthPickup _}) = "heart.png"
+
 rectPos :: Rectangle -> Vector Number
 rectPos {x,y} = V {x,y}
 
@@ -309,7 +322,6 @@ animPlayerRect t (UIState {playerAnim}) (GameState gs) =
                + A.resolve t playerAnim
    in { x, y, width: tileSize, height: tileSize }
 
-
 animEnemyRect :: Instant -> EnemyId -> Enemy -> UIState -> GameState -> Rectangle
 animEnemyRect t eid (Enemy {location}) (UIState {enemyAnim}) (GameState gs) =
   let shift = fromMaybe zero $
@@ -318,6 +330,13 @@ animEnemyRect t eid (Enemy {location}) (UIState {enemyAnim}) (GameState gs) =
                 rectPos centerPaneRect
                 + fromGrid location
                 + shift
+   in { x, y, width: tileSize, height: tileSize }
+
+animItemRect :: Instant -> ItemId -> Item -> UIState -> GameState -> Rectangle
+animItemRect t iid (Item {location}) (UIState {itemAnim}) (GameState gs) =
+  let  V{x,y} = round <$>
+                rectPos centerPaneRect
+                + fromGrid location
    in { x, y, width: tileSize, height: tileSize }
 
 drawRightPane :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
