@@ -231,7 +231,7 @@ drawCenterPane
                y = centerPaneRect.y + centerPaneRect.height - tileSize * 4.0
            drawText rs "Drag parts into your health area to install them"
              (V{x,y})
-           drawText rs "Click on parts to remove them"
+           drawText rs "Click on parts in your health to destroy them"
              (V{x,y: y + tileSize})
            drawText rs "Press any key to go to the next level"
              (V{x,y: y + tileSize * 2.0})
@@ -242,7 +242,7 @@ centerPaneMap :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
 centerPaneMap t (UIState uis) (GameState gs) rs = do
   clear rs centerPaneRect
   forWithIndex_ gs.terrain \pos terrain ->
-     let Position p = pos
+     let V p = pos
          x = centerPaneRect.x + toNumber p.x * tileSize
          y = toNumber p.y * tileSize
          image = case terrain of

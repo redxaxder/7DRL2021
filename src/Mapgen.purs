@@ -106,6 +106,7 @@ tooBig m {width, height} = width > m || height > m
 
 
 type SubdivWip = {complete :: Array Block, incomplete :: Array Block}
+
 recursivelySubdivide :: Int -> Int -> Block -> Random (Array Block)
 recursivelySubdivide minSize maxSize block = tailRecM go
   { incomplete: [block]
@@ -132,19 +133,25 @@ unproduct {x,y,width,height} =
   , v: { start: y, len: height }
   }
 
-areAdjacent :: Block -> Block -> Boolean
-areAdjacent a b =
-  let sa = unproduct a
-      sb = unproduct b
-   in     (areKissing sa.h sb.h && not (disjoint sa.v sb.v))
-       || (areKissing sa.v sb.v && not (disjoint sa.h sb.h))
-
 end :: Interval -> Int
 end {start, len} = start + len - 1
 
 areKissing :: Interval -> Interval -> Boolean
 areKissing a b = a.start == end b + 2
   ||             b.start == end a + 2
+
+blocksAreAdjacent :: Block -> Block -> Boolean
+blocksAreAdjacent a b =
+  let sa = unproduct a
+      sb = unproduct b
+   in     (areKissing sa.h sb.h && not (disjoint sa.v sb.v))
+       || (areKissing sa.v sb.v && not (disjoint sa.h sb.h))
+
+roomsAreAdjacent :: Room -> Room -> Boolean
+roomsAreAdjacent xs ys = any (\{a,b} -> blocksAreAdjacent a b) $ do
+  a <- xs
+  b <- ys
+  pure {a,b}
 
 data Overlap = SubsetLT
   | SubsetGT
@@ -161,7 +168,7 @@ overlap a b = fromMaybe Disjoint $
   m x bool = if bool then Just x else Nothing
   equal = a == b # m Equal
   subsetLT = a.start >= b.start && end a <= end b # m SubsetLT
-  subsetGT = a.start <= b.start && end a >= end b # m SubsetLT
+  subsetGT = a.start <= b.start && end a >= end b # m SubsetGT
   partial = a.start <= end b && b.start <= end a # m
              (Partial $ 1 + min (end a - b.start) (end b - a.start))
 
@@ -182,34 +189,68 @@ disjoint a b = overlap a b == Disjoint
 unsafeIndex :: forall a. Array a -> Int -> a
 unsafeIndex a i = unsafePartial $ Array.unsafeIndex a i
 
-blockAdjacency :: Array Block -> Array {a :: Int, b :: Int}
-blockAdjacency blocks = do
-  let n = Array.length blocks -1
-  a <- Array.range 0 n
-  b <- Array.range 0 n
-  guard $ a /= b
-  guard $ areAdjacent (unsafeIndex blocks a) (unsafeIndex blocks b)
-  pure {a,b}
-
-type AdjMap =
+type AdjMap x =
   { edges :: Map Int (Array Int)
-  , blocks :: Array Block
+  , points :: Array x
   }
 
 -- labelled
 type L b = { value :: b, label :: Int }
 
-mkAdjMap :: Array {a::Int,b::Int} -> Map Int (Array Int)
-mkAdjMap xs = foldl (\m {a,b} -> Map.insertWith (<>) a [b] m) Map.empty xs
+adjacencyMap :: forall a. Array a -> (a -> a -> Boolean) -> AdjMap a
+adjacencyMap points adj = {points,edges}
+  where
+  pairs :: Array {a :: Int, b :: Int}
+  pairs = do
+    let n = Array.length points - 1
+    a <- Array.range 0 n
+    b <- Array.range 0 n
+    guard $ a /= b
+    guard $ adj (unsafeIndex points a) (unsafeIndex points b)
+    pure {a,b}
+  edges = foldl (\m {a,b} -> Map.insertWith (<>) a [b] m) Map.empty pairs
 
-adjacentBlocks :: L Block -> AdjMap -> Array (L Block)
-adjacentBlocks {label} {edges, blocks} =
+listAdjacent :: forall x. AdjMap x -> L x -> Array (L x)
+listAdjacent {edges, points} {label} =
   let ls = unsafeFromJust (Map.lookup label edges)
-      bs = ls <#> \l -> unsafeIndex blocks l
+      bs = ls <#> \l -> unsafeIndex points l
    in Array.zipWith (\l b -> {label:l,value:b}) ls bs
 
+adjacent :: forall x. AdjMap x -> L x -> L x -> Boolean
+adjacent m x y = isJust $
+  Array.find (\{label} -> label == y.label)
+  (listAdjacent m x)
 
 
+type Conf =
+  { width :: Int
+  , height :: Int
+  , minBlock:: Int
+  , maxBlock:: Int
+  }
+
+type Result =
+  { rooms :: Array Room
+  , entrance :: Vector Int
+  , exit :: Vector Int
+  , doors :: Array (Vector Int)
+  }
 
 
+{-
+door :: Room -> Room -> Maybe (Random (Vector Int))
+door =
+  -}
 
+generateMapFull :: Conf -> Random Result
+generateMapFull c = do
+  let startingBlock = {x:0, y:0, width: c.width, height: c.height}
+  blocks <- recursivelySubdivide c.minBlock c.maxBlock startingBlock
+  let rooms = Array.singleton <$> blocks
+      -- roomAdjacency = adjacencyMap rooms roomsAreAdjacent
+  pure $
+    { rooms
+    , entrance: V{x:1,y:2}
+    , exit: V{x:1,y:4}
+    , doors: []
+    }

@@ -12,8 +12,13 @@ import Data.FoldableWithIndex (findWithIndex)
 import Data.String as String
 import Data.String.CodeUnits (toCharArray)
 import Data.Position (Position (..))
-import Data.Terrain (Terrain (..), demoTerrain, charToTerrain, flatten)
+import Data.Terrain
+  (Terrain (..), demoTerrain, charToTerrain
+  , flatten
+  , carveRooms
+  )
 import Data.Ord (abs)
+import Mapgen as G
 import Data.Board
   ( BoardCoord
   , Board(..)
@@ -124,10 +129,7 @@ playerHpOrgan :: Organ
 playerHpOrgan = Organ (OrganSize 2 2) PlayerHeartLarge
 
 isWall :: Vector Int -> LinearIndex Terrain -> Boolean
-isWall v t = (==) Wall $ fromMaybe Floor (LI.index t (fromVector v))
-
-fromVector :: Vector Int -> Position
-fromVector (V v) = Position { x: v.x, y: v.y }
+isWall v t = (==) Wall $ fromMaybe Floor (LI.index t v)
 
 step :: GameState -> GameAction -> Either FailedAction GameState
 step gs = handleAction (clearEvents <<< checkDeath $ gs)
@@ -185,7 +187,7 @@ isPassable t (GameState gs) =
   && t /= gs.p
 
 isExit :: Vector Int -> GameState -> Boolean
-isExit v (GameState gs) = case LI.index gs.terrain (fromVector v) of
+isExit v (GameState gs) = case LI.index gs.terrain v of
   Just Exit -> true
   _ -> false
 
@@ -205,6 +207,9 @@ data Event =
   | PlayerDied
   | EnemyDied EnemyId
 
+arena :: {width :: Int, height :: Int}
+arena = {width:20,height:20}
+
 newtype GameState = GameState
   { p :: Vector Int
   , playerHealth :: Health
@@ -220,6 +225,23 @@ withRandom :: (GameState -> R.Random GameState) -> GameState -> GameState
 withRandom f gs@(GameState g) =
   let {result: (GameState nextG), nextGen} = R.runRandom (f gs) g.rng
    in GameState nextG{ rng = nextGen }
+
+
+genNewMap :: GameState -> GameState
+genNewMap = withRandom $ \(GameState gs) -> do
+  let {width,height} = arena
+      conf = { width
+             , height
+             , minBlock: 4
+             , maxBlock: 12
+             }
+  {rooms, entrance,exit,doors} <-  G.generateMapFull todo
+  let baseTerrain = LI.fill width height Wall
+      terrain = carveRooms rooms baseTerrain
+  pure $ GameState gs {terrain = terrain}
+       -- terrain = (LI.fill 40 40 Wall)
+         
+
 
 data Level = Regular Int | Surgery Int
 
@@ -258,7 +280,7 @@ getEnemyAtPosition p (GameState gs) = do
   pure index
 
 getTerrainAtPosition :: Vector Int -> GameState -> Terrain
-getTerrainAtPosition p (GameState {terrain}) = fromMaybe Floor $ LI.index terrain (fromVector p)
+getTerrainAtPosition p (GameState {terrain}) = fromMaybe Floor $ LI.index terrain p
 
 type WeaponId = Int
 

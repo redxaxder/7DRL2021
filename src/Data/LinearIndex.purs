@@ -1,7 +1,7 @@
 
 module Data.LinearIndex where
 
-import Prelude
+import Extra.Prelude
 import Data.Array as Array
 import Data.Maybe (Maybe)
 import Control.MonadZero (guard)
@@ -48,10 +48,10 @@ indices :: forall t. LinearIndex t -> Array Position
 indices (LinearIndex {width, height}) = do
   x <- Array.range 0 (width - 1)
   y <- Array.range 0 (height - 1)
-  pure (Position {x,y})
+  pure (V {x,y})
 
 index :: forall t. LinearIndex t -> Position -> Maybe t
-index (LinearIndex {width, height, values}) (Position {x,y})  = do
+index (LinearIndex {width, height, values}) (V {x,y})  = do
   guard (x < width)
   guard (x >= 0)
   guard (y < height)
@@ -59,7 +59,7 @@ index (LinearIndex {width, height, values}) (Position {x,y})  = do
   Array.index values (x + y*width)
 
 insertAt :: forall t. Position -> t -> LinearIndex t -> Maybe (LinearIndex t)
-insertAt (Position {x,y}) t (LinearIndex {width, height, values}) = do
+insertAt (V {x,y}) t (LinearIndex {width, height, values}) = do
   guard (x < width)
   guard (x >= 0)
   guard (y < height)
@@ -68,17 +68,14 @@ insertAt (Position {x,y}) t (LinearIndex {width, height, values}) = do
   pure $ LinearIndex { width, height, values: values' }
 
 toPos :: forall a. LinearIndex a -> Int -> Position
-toPos (LinearIndex {width}) ix = Position
-  { x: ix `mod` width
-  , y: ix `div` width
-  }
+toPos (LinearIndex {width}) ix = V { x: ix `mod` width , y: ix `div` width }
 
 instance foldLI :: Foldable LinearIndex where
   foldr f z (LinearIndex {values}) = foldr f z values
   foldl f z (LinearIndex {values}) = foldl f z values
   foldMap f (LinearIndex {values}) = foldMap f values
 
-instance foldWithPosition :: FoldableWithIndex Position LinearIndex where
+instance foldWithPosition :: FoldableWithIndex (Vector Int) LinearIndex where
   foldrWithIndex f z l@(LinearIndex {values}) =
     foldrWithIndex (\i a b -> f (toPos l i) a b) z values
   foldlWithIndex f z l@(LinearIndex {values}) =
