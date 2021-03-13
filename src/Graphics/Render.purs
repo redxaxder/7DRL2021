@@ -12,6 +12,7 @@ import Data.Int as Int
 import Effect.Exception (error)
 import Effect.Ref as Ref
 import Math (round, sin)
+import Math as Math
 import Effect.Ref (Ref)
 import Graphics.Canvas as Canvas
 import Data.Set as Set
@@ -275,11 +276,18 @@ drawCenterPaneAnimations
   forWithIndex_ g.items \iid item@(Item{location}) ->
     let rect = animItemRect t iid item uis gs
         image = itemImage item
-     in drawImageTemp r image rect
+        itemLifetime = 10
+     in when (blink t itemLifetime) $ drawImageTemp r image rect
   forWithIndex_ g.enemies \eid nme ->
     let rect = animEnemyRect t eid nme uis gs
         image = enemyImage nme
      in drawImageTemp r image rect
+
+blink :: Instant -> Int -> Boolean
+blink t f = Math.remainder ms interval > 100.0
+  where
+  ms = t # unInstant # un Milliseconds
+  interval = 200.0 + (Math.sqrt $ (toNumber f * 100000.0 - 200.0))
 
 drawDraggedOrgan :: UIState -> GameState -> RendererState -> Effect Unit
 drawDraggedOrgan (UIState{draggingOrgan}) gs rs@(RendererState r) = do
