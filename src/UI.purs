@@ -59,6 +59,7 @@ newtype UIState = UIState
   , gsTimestamp :: Instant
   , playerAnim :: Offset
   , enemyAnim :: Map EnemyId Offset
+  , itemAnim :: Map EnemyId Int
   , highlights :: Array Rectangle
   , audioData :: AudioData
   , audioQueue :: AudioQueue
@@ -97,6 +98,7 @@ initUIState (GameState {p}) = do
     , playerAnim: pure zero
     , draggingOrgan: Nothing
     , enemyAnim: Map.empty
+    , itemAnim: Map.empty
     , audioData
     , audioQueue: []
     , highlights: []

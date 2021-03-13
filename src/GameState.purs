@@ -56,6 +56,12 @@ import Data.Enemy
   , injureEnemyMulti
   )
 import Random.Gen as R
+import Data.Item
+  ( Item(..)
+  , ItemId
+  , ItemTag (..)
+  , medium
+  )
 
 newState :: Effect GameState
 newState = do
@@ -65,6 +71,7 @@ newState = do
     , playerHealth: freshPlayerHealth
     , playerDistanceMap: Map.empty
     , enemies: exampleEnemies
+    , items: exampleItems
     , level: Surgery 1
     , availableOrgans: exampleOrgans
     , events: []
@@ -87,6 +94,17 @@ exampleEnemies =
     , health: mkHealth exampleRoombaBoard
     , clueCache: Map.empty
     , tag: Roomba
+    }
+  ]
+
+exampleItems :: Map ItemId Item
+exampleItems =
+  Map.fromFoldableWithIndex
+  [
+    Item
+    { location: V{x: 10, y: 10}
+    , decay: 10
+    , tag: HealthPickup medium
     }
   ]
 
@@ -235,6 +253,7 @@ newtype GameState = GameState
   , playerHealth :: Health
   , playerDistanceMap :: Map (Vector Int) Int
   , enemies :: Map EnemyId Enemy
+  , items :: Map ItemId Item
   , terrain :: LinearIndex Terrain
   , rooms :: Map Terrain.Room RoomInfo
   , level :: Level
