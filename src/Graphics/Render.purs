@@ -15,6 +15,7 @@ import Math (round, sin)
 import Effect.Ref (Ref)
 import Graphics.Canvas as Canvas
 import Data.Set as Set
+import Data.LinearIndex as LI
 import Data.Board
   ( Board(..)
   , Clue (..)
@@ -28,6 +29,7 @@ import Data.Board
   )
 import Data.Terrain
   ( Terrain(..)
+  , blockPositions
   )
 
 import Framework.Render.Canvas as FCanvas
@@ -241,17 +243,19 @@ drawCenterPane
 centerPaneMap :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
 centerPaneMap t (UIState uis) (GameState gs) rs = do
   clear rs centerPaneRect
-  forWithIndex_ gs.terrain \pos terrain ->
-     let V p = pos
-         x = centerPaneRect.x + toNumber p.x * tileSize
-         y = toNumber p.y * tileSize
-         image = case terrain of
-                  Wall -> "wall.png"
-                  Floor -> "ground.png"
-                  Exit -> "placeholder.png"
-                  DoorClosed -> "doorclosed.png"
-                  DoorOpen -> "dooropen.png"
-     in drawImage rs image { x, y, width: tileSize, height: tileSize }
+  for_ gs.rooms \{perimeter, visible} -> when visible $
+    for_ (blockPositions $ perimeter) \pos ->
+      let V p = pos
+          terrain = fromMaybe Floor $ LI.index gs.terrain pos
+          x = centerPaneRect.x + toNumber p.x * tileSize
+          y = toNumber p.y * tileSize
+          image = case terrain of
+                   Wall -> "wall.png"
+                   Floor -> "ground.png"
+                   Exit -> "placeholder.png"
+                   DoorClosed -> "doorclosed.png"
+                   DoorOpen -> "dooropen.png"
+      in drawImage rs image { x, y, width: tileSize, height: tileSize }
 
 drawCenterPaneAnimations
   :: Instant -> UIState -> GameState -> RendererState -> Effect Unit

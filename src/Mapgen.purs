@@ -70,7 +70,7 @@ partition min n =
        true,true -> R.chance 80 >>= case _ of
          true -> splitinto2
          false -> splitinto3
-   in result <#> \x -> let _ = spy "hmm" {x,n} in x
+   in result
 
   where
     splitinto2 = do -- must split in two
@@ -91,7 +91,7 @@ partition min n =
 subdivideInterval :: Int -> Interval -> Random (Array Interval)
 subdivideInterval minSize {start,len} = do
   lens <- partition minSize len
-  let starts = spy "starts" $ lens
+  let starts = lens
         # Array.init
         # unsafeFromJust
         # scanl (+) start
@@ -122,7 +122,6 @@ recursivelySubdivide minSize maxSize block = tailRecM go
     go {complete, incomplete} =
          let {no,yes} = Array.partition (tooBig maxSize) incomplete
              completeNew = complete <> no
-             _ = spy "len" (Array.length yes)
           in if Array.null yes
              then pure $ Done completeNew
              else do
@@ -141,6 +140,9 @@ unproduct {x,y,width,height} =
 
 end :: Interval -> Int
 end {start, len} = start + len - 1
+
+inInterval :: Int -> Interval -> Boolean
+inInterval x i = x >= i.start && x <= end i
 
 areKissing :: Interval -> Interval -> Boolean
 areKissing a b = a.start == end b + 2

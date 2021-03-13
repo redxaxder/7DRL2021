@@ -34,25 +34,37 @@ floodFillStep expand {frontier, expanded} = do
          expanded' = Set.insert head expanded
      pure $ { frontier: frontier', expanded: expanded' }
 
-distanceMap :: forall v. Ord v => v -> (v -> Array v) -> Map v Int
-distanceMap start expand = _.expanded $ flip loop
-  { frontier: List.singleton {v:start,d:0}
-  , expanded: Map.empty
-  } $ distanceMapStep expand
+type V = Vector Int
+distanceMap :: V -> (V -> Array V) -> Map V Int
+distanceMap start expand = 
+  let x = _.expanded $ flip loop
+            { frontier: [{v:start,d:0}]
+            , expanded: Map.empty
+            } $ distanceMapStep expand
+      compareV a b = compare a.v b.v
+      _ = spy "distances" (Array.sortBy compareV $ flatten x)
+   in x
+
+flatten :: forall k v. Map k v -> Array {k::k,v::v}
+flatten m = foldlWithIndex (\k a v -> Array.cons {k,v} a) [] m
+
 
 type DistanceMapStepData v =
-  { frontier :: List {v::v,d::Int}
+  { frontier :: Array {v::v,d::Int}
   , expanded :: Map v Int
   }
+
 
 distanceMapStep :: forall v.
   Ord v => (v -> Array v) -> DistanceMapStepData v -> Maybe (DistanceMapStepData v)
 distanceMapStep expand {frontier, expanded} = do
-  { head: head@{v,d}, tail } <- List.uncons frontier
+  { head: head@{v,d}, tail } <- Array.uncons frontier
   let newNodes = expand v
                # Array.filter (not <<< flip Map.member expanded)
+               # Array.filter (not <<< flip Array.elem (frontier <#> _.v))
                # map (\w -> {v:w,d:d+1})
-      frontier' = foldr List.Cons tail newNodes
+      frontier' = foldr Array.cons tail newNodes
+                # Array.sortBy (comparing _.d)
       expanded' = Map.insert v d expanded
   pure $ { frontier: frontier', expanded: expanded' }
 

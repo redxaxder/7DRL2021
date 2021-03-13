@@ -11,6 +11,10 @@ import Data.String
 
 import Data.LinearIndex as L
 import Data.LinearIndex (LinearIndex)
+import Mapgen
+ ( unproduct
+ , inInterval
+ )
 
 type Arena = LinearIndex Terrain
 
@@ -53,15 +57,16 @@ carveRooms :: Array Room -> Arena -> Arena
 carveRooms rooms terrain = foldl (\t b -> carveRoom b t) terrain rooms
 
 perimeter :: Block -> Block
-perimeter rect = rect + {x: -1,y: -1,width:2,height:2}
+perimeter r =
+  let result = {x: r.x-1, y: r.y-1, width: r.width+2, height: r.height+2}
+   in result
 
-{-
+
 insideBlock :: Position -> Block -> Boolean
-insideBlock
+insideBlock (V p) b =
+  let {h,v} = unproduct b
+   in inInterval p.x h && inInterval p.y v
 
-insideRoom :: Position -> Room -> Boolean
-insideRoom
--}
 placeDoors :: forall e. Array { pos :: Vector Int | e } -> Arena -> Arena
 placeDoors doors terrain =
   foldl (\t {pos} -> set pos DoorClosed t) terrain doors

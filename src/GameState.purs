@@ -70,9 +70,10 @@ newState = do
     , events: []
     , rng: random
     , terrain: bareMap
-    , rooms: []
+    , rooms: Map.empty
     }
     # genNewMap
+    # revealRooms
     # recalculatePDMap
 
 startingPos :: Vector Int
@@ -169,6 +170,7 @@ handleAction g@(GameState gs) a@(Move dir) =
       false, _ -> Left (FailedAction dir)
       true,false -> Right $ (GameState gs {p = p'})
                       # reportEvent (PlayerMoved dir)
+                      # revealRooms
                       # recalculatePDMap
                       # enemyTurn
       true,true -> Right $ (GameState gs {p = p'})
@@ -226,6 +228,7 @@ data Event =
   | EnemyAttacked EnemyId BoardCoord
   | PlayerDied
   | EnemyDied EnemyId
+  | RoomRevealed Terrain.Room
 
 newtype GameState = GameState
   { p :: Vector Int
@@ -233,11 +236,17 @@ newtype GameState = GameState
   , playerDistanceMap :: Map (Vector Int) Int
   , enemies :: Map EnemyId Enemy
   , terrain :: LinearIndex Terrain
-  , rooms :: Array Terrain.Room
+  , rooms :: Map Terrain.Room RoomInfo
   , level :: Level
   , availableOrgans :: OrganBag
   , events :: Array Event
   , rng :: R.Gen
+  }
+
+type RoomInfo =
+  { room :: Terrain.Room
+  , perimeter :: Terrain.Room
+  , visible :: Boolean
   }
 
 withRandom :: (GameState -> R.Random GameState) -> GameState -> GameState
@@ -257,22 +266,45 @@ genNewMap = withRandom $ \(GameState gs) -> do
   let terrain = bareMap
               # carveRooms rooms
               # Terrain.placeDoors doors
+      roomInfo = rooms <#> \room ->
+        { room, perimeter: Terrain.perimeter room, visible: false}
   pure $ GameState gs
     { terrain = terrain
-    , rooms = rooms
+    , rooms = Map.fromFoldable (Array.zip rooms roomInfo)
     }
 
 recalculatePDMap :: GameState -> GameState
 recalculatePDMap (GameState gs) =
   let start = gs.p
       expand x = do
-         d <- Direction.directions4
+         d <- Direction.directions8
          let x' = move d x
          guard $ inWorldBounds x' gs.terrain
          guard $ (isFloor x' gs.terrain || isOpenDoor x' gs.terrain)
          pure x'
       newMap = Solver.distanceMap start expand
    in GameState gs { playerDistanceMap = newMap }
+
+revealRooms :: GameState -> GameState
+revealRooms = withRandom \g@(GameState gs) ->
+  -- random not used yet, but will be used when spawning things in
+  let hiddenRooms = gs.rooms
+                  # Map.filter (not <<< _.visible)
+                  # Map.values
+                  # Array.fromFoldable
+      roomToReveal :: Maybe RoomInfo
+      roomToReveal = hiddenRooms
+                   # Array.find \r ->
+                     Terrain.insideBlock gs.p r.perimeter
+   in case roomToReveal of
+        Nothing -> pure g
+        Just r -> pure $
+          GameState gs { rooms = Map.update
+                                   (\x -> Just x{visible = true})
+                                   r.room
+                                   gs.rooms
+                       }
+          # reportEvent (RoomRevealed r.room)
 
 data Level = Regular Int | Surgery Int
 
