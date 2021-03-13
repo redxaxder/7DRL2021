@@ -154,8 +154,6 @@ blocksAreAdjacent a b =
    in     (areKissing sa.h sb.h && not (disjoint sa.v sb.v))
        || (areKissing sa.v sb.v && not (disjoint sa.h sb.h))
 
-
-
 roomsAreAdjacent :: Room -> Room -> Boolean
 roomsAreAdjacent = blocksAreAdjacent
 
@@ -181,17 +179,6 @@ overlap a b = fromMaybe Disjoint $
 disjoint :: Interval -> Interval -> Boolean
 disjoint a b = overlap a b == Disjoint
 
-
---      |------|
--- |----|      |1j
--- |           |2
--- |       B   |3
--- | A  |      |4
--- |    |------|5
--- |----|  C   |6
---      |      |7
---      |------|8
-
 unsafeIndex :: forall a. Array a -> Int -> a
 unsafeIndex a i = unsafePartial $ Array.unsafeIndex a i
 
@@ -202,7 +189,6 @@ type AdjMap x =
 
 lookup :: forall x. Int -> AdjMap x -> x
 lookup i {points} = unsafeIndex points i
-
 
 -- labelled
 type L b = { value :: b, label :: Int }
@@ -237,9 +223,8 @@ listAdjacent {edges, points} {label} =
 
 adjacent :: forall x. AdjMap x -> L x -> L x -> Boolean
 adjacent m x y = isJust $
-  Array.find (\{label} -> label == y.label)
+  Array.find (\ {label} -> label == y.label)
   (listAdjacent m x)
-
 
 type Conf =
   { width :: Int
@@ -255,19 +240,24 @@ type Result =
   , doors :: Array Door
   }
 
-
 generateMapFull :: Conf -> Random Result
 generateMapFull c = do
   let startingBlock = {x:1, y:1, width: c.width -2 , height: c.height -2 }
   rooms <- recursivelySubdivide c.minBlock c.maxBlock startingBlock
   let roomAdjacency = adjacencyMap rooms roomsAreAdjacent
   doors <- genDoors roomAdjacency
+  exit <- genExit rooms
   pure $
     { rooms
     , entrance: V{x:1,y:2}
-    , exit: V{x:1,y:4}
+    , exit: spy "exit" exit
     , doors
     }
+
+genExit :: Array Room -> Random (Vector Int)
+genExit rooms = do
+  pos <- R.unsafeElement $ mapEdgeAdjacencies rooms
+  pure pos
 
 type Door =
   { pos :: Vector Int
@@ -275,7 +265,7 @@ type Door =
   }
 
 genDoors :: AdjMap Room -> Random (Array Door)
-genDoors rooms = for (getEdges rooms) \{a,b} -> do
+genDoors rooms = for (getEdges rooms) \ {a,b} -> do
   pos <- R.unsafeElement $ roomAdjacencies (lookup a rooms) (lookup b rooms)
   pure {pos, connectedRooms: [a,b]}
 
@@ -293,7 +283,23 @@ blockAdjacencies a b = case areKissing sa.h sb.h of
   sa = unproduct a
   sb = unproduct b
 
+mapEdgeAdjacenciesForBlock :: Block -> Array (Vector Int)
+mapEdgeAdjacenciesForBlock b =
+  if  b.x == 1
+     || b.x + b.width == 18
+  then let ys = Array.range b.y (b.y+b.width)
+           x = if b.x == 1 then 0 else 19
+       in ys <#> \y -> V{x,y}
+  else [ V{x:1,y:1} ]
+
+mapEdgeAdjacencies :: Array Block -> Array (Vector Int)
+mapEdgeAdjacencies blocks = Array.concat $ map mapEdgeAdjacenciesForBlock (Array.filter blockOnEdge blocks)
+
+blockOnEdge :: Block -> Boolean
+blockOnEdge b = b.x == 1
+     || b.x + b.width == 18
+     || b.y == 1
+     || b.y + b.height == 18
+
 roomAdjacencies :: Room -> Room -> Array (Vector Int)
 roomAdjacencies = blockAdjacencies
-
-
