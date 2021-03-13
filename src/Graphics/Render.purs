@@ -239,7 +239,7 @@ drawCenterPane
              y = centerPaneRect.y + centerPaneRect.height - tileSize * 4.0
              size = tileSize / 2.0
              say s p = drawText rs size s p
-         say "You died" (V{x,y})
+         say "You died. Press any key to try again." (V{x,y})
          cacheScreen rs
        Regular _ -> do
          when gsDirty $ do
