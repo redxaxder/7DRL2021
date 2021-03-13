@@ -45,6 +45,8 @@ import GameState
   , Target (..)
   , Event (..)
   )
+
+import Data.Item (ItemId)
 import Data.Enemy (EnemyId)
 
 import Input (Input, InputValue (..))
@@ -73,6 +75,7 @@ type OrganDrag =
 
 data RightPane =
   RPEnemy EnemyId
+  | RPItem ItemId
   | RPTerrain Terrain
   | RPNoTarget
 
@@ -227,6 +230,7 @@ organDragLoc startPos offset =
 rpTarget :: Vector Int -> GameState -> RightPane
 rpTarget pos gs = case getTargetAtPosition pos gs of
   TargetEnemy eid -> RPEnemy eid
+  TargetItem iid -> RPItem iid
   TargetTerrain terrain -> RPTerrain terrain
 
 viewTarget :: Instant -> Vector Int -> UIState -> GameState -> UIState

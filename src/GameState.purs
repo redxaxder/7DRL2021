@@ -328,19 +328,26 @@ revealRooms = withRandom \g@(GameState gs) ->
                      Terrain.insideBlock gs.p r.perimeter
    in case roomToReveal of
         Nothing -> pure g
-        Just r -> pure $
-          GameState gs { rooms = Map.update
-                                   (\x -> Just x{visible = true})
-                                   r.room
-                                   gs.rooms
-                       }
-          # reportEvent (RoomRevealed r.room)
+        Just r -> do
+          g' <- populateRoom g r.room
+          pure $ g'
+             # reportEvent (RoomRevealed r.room)
+             # markVisible r.room
 
-spawnEnemies :: GameState -> Room -> Random GameState
-spawnEnemies g@(GameState gs) room = pure g
+markVisible :: Room -> GameState -> GameState
+markVisible room (GameState gs) =
+  GameState gs { rooms = Map.update
+                           (\x -> Just x{visible = true})
+                           room
+                           gs.rooms
+               }
 
-spawnItems :: GameState -> Room -> Random GameState
-spawnItems g@(GameState gs) room = pure g
+populateRoom :: GameState -> Room -> Random GameState
+populateRoom g@(GameState gs) room = pure g
+
+-- rollRoomLocation :: Room -> Array BoardCoord -> Random BoardCoord
+-- rollRoomLocation r occupied =
+
 
 data Level = Regular Int | Surgery Int
 
@@ -351,6 +358,10 @@ isSurgeryLevel _ = false
 nextLevel :: Level -> Level
 nextLevel (Regular i) = Surgery i
 nextLevel (Surgery i) = Regular (i+1)
+
+levelDepth :: Level -> Int
+levelDepth (Regular i) = i
+levelDepth (Surgery i) = i
 
 goToNextLevel :: GameState -> GameState
 goToNextLevel (GameState gs) = GameState gs { level = nextLevel gs.level }
@@ -364,6 +375,7 @@ reportEvent e (GameState gs) = GameState gs
 
 data Target =
   TargetEnemy EnemyId
+  | TargetItem ItemId
   | TargetTerrain Terrain
 
 getTargetAtPosition :: Vector Int -> GameState -> Target

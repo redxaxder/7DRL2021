@@ -36,7 +36,9 @@ import Framework.Render.Canvas as FCanvas
 
 import GameState
   ( GameState (..)
+  , Target (..)
   , isSurgeryLevel
+  , getTargetAtPosition
   )
 import UI
   ( UIState (..)
@@ -270,13 +272,13 @@ drawCenterPaneAnimations
   gs@(GameState g)
   r@(RendererState rs) = do
   drawImageTemp r "player.png" (animPlayerRect t uis gs)
+  forWithIndex_ g.items \iid item@(Item{location}) ->
+    let rect = animItemRect t iid item uis gs
+        image = itemImage item
+     in drawImageTemp r image rect
   forWithIndex_ g.enemies \eid nme ->
     let rect = animEnemyRect t eid nme uis gs
         image = enemyImage nme
-     in drawImageTemp r image rect
-  forWithIndex_ g.items \iid item ->
-    let rect = animItemRect t iid item uis gs
-        image = itemImage item
      in drawImageTemp r image rect
 
 drawDraggedOrgan :: UIState -> GameState -> RendererState -> Effect Unit

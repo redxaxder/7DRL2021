@@ -8,7 +8,6 @@ import Random (Random)
 import Random as R
 import Data.Traversable (scanl)
 import Data.FunctorWithIndex (mapWithIndex)
-import Data.FoldableWithIndex (foldlWithIndex)
 
 import Control.Monad.Rec.Class (Step (..), tailRecM)
 
