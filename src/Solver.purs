@@ -36,14 +36,10 @@ floodFillStep expand {frontier, expanded} = do
 
 type V = Vector Int
 distanceMap :: V -> (V -> Array V) -> Map V Int
-distanceMap start expand = 
-  let x = _.expanded $ flip loop
-            { frontier: [{v:start,d:0}]
-            , expanded: Map.empty
-            } $ distanceMapStep expand
-      compareV a b = compare a.v b.v
-      _ = spy "distances" (Array.sortBy compareV $ flatten x)
-   in x
+distanceMap start expand = _.expanded $ flip loop
+  { frontier: [{v:start,d:0}]
+  , expanded: Map.empty
+  } $ distanceMapStep expand
 
 flatten :: forall k v. Map k v -> Array {k::k,v::v}
 flatten m = foldlWithIndex (\k a v -> Array.cons {k,v} a) [] m
