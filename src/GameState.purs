@@ -2,12 +2,16 @@ module GameState where
 
 import Extra.Prelude
 import Framework.Direction (Direction, move)
+import Framework.Direction as Direction
 import Data.Array as Array
+import Data.Array as Array
+import Data.Array.NonEmpty as NonEmpty
 import Data.Set as Set
 import Data.Map as Map
 import Data.Tuple as Tuple
 import Data.LinearIndex (LinearIndex (..))
 import Data.LinearIndex as LI
+import Data.Foldable (minimum)
 import Data.FoldableWithIndex (findWithIndex)
 import Data.String as String
 import Data.String.CodeUnits (toCharArray)
@@ -20,6 +24,7 @@ import Data.Terrain
   , carveRooms
   )
 import Data.Terrain as Terrain
+import Solver as Solver
 import Data.Ord (abs)
 import Mapgen as G
 import Data.Board
@@ -58,6 +63,7 @@ newState = do
   pure $ GameState
     { p: startingPos
     , playerHealth: freshPlayerHealth
+    , playerDistanceMap: Map.empty
     , enemies: exampleEnemies
     , level: Surgery 1
     , availableOrgans: exampleOrgans
@@ -66,6 +72,7 @@ newState = do
     , rng: random
     }
     # genNewMap
+    # recalculatePDMap
 
 startingPos :: Vector Int
 startingPos = V {x: 1, y: 1}
@@ -137,6 +144,9 @@ playerHpOrgan = Organ (OrganSize 2 2) PlayerHeartLarge
 isWall :: Vector Int -> LinearIndex Terrain -> Boolean
 isWall v t = (==) Wall $ fromMaybe Floor (LI.index t v)
 
+isFloor :: Vector Int -> LinearIndex Terrain -> Boolean
+isFloor v t = (==) Floor $ fromMaybe Floor (LI.index t v)
+
 step :: GameState -> GameAction -> Either FailedAction GameState
 step gs = handleAction (clearEvents <<< checkDeath $ gs)
 
@@ -155,10 +165,13 @@ handleAction g@(GameState gs) a@(Move dir) =
       false, _ -> Left (FailedAction dir)
       true,false -> Right $ (GameState gs {p = p'})
                       # reportEvent (PlayerMoved dir)
+                      # recalculatePDMap
                       # enemyTurn
       true,true -> Right $ (GameState gs {p = p'})
                       # goToNextLevel
                       # reportEvent (PlayerMoved dir)
+                      # genNewMap
+                      # recalculatePDMap
 
 handleAction (GameState gs) a@(Attack bc eid) =
   let menemy = Map.lookup eid gs.enemies
@@ -198,10 +211,6 @@ isExit v (GameState gs) = case LI.index gs.terrain v of
   Just Exit -> true
   _ -> false
 
-intVecToDir :: Vector Int -> Vector Int
-intVecToDir (V {x,y}) = V {x: abs' x, y: abs' y}
-  where abs' n = if n == 0 then 0 else n / abs n
-
 inWorldBounds :: Vector Int -> LinearIndex Terrain -> Boolean
 inWorldBounds (V{x,y}) (LinearIndex t) =  -- TODO: fix this
   0 <= x && x <= t.width - 1 && 0 <= y && y <= t.height - 1
@@ -217,6 +226,7 @@ data Event =
 newtype GameState = GameState
   { p :: Vector Int
   , playerHealth :: Health
+  , playerDistanceMap :: Map (Vector Int) Int
   , enemies :: Map EnemyId Enemy
   , terrain :: LinearIndex Terrain
   , level :: Level
@@ -244,6 +254,20 @@ genNewMap = withRandom $ \(GameState gs) -> do
               # carveRooms rooms
               # Terrain.placeDoors doors
   pure $ GameState gs {terrain = terrain}
+
+recalculatePDMap :: GameState -> GameState
+recalculatePDMap (GameState gs) =
+  let -- adjacency
+      -- filter by isFloor
+      start = gs.p
+      expand x = do
+         d <- Direction.directions4
+         let x' = move d x
+         guard $ inWorldBounds x' gs.terrain
+         guard $ isFloor x' gs.terrain
+         pure x'
+      newMap = Solver.distanceMap start expand
+   in GameState gs { playerDistanceMap = newMap }
 
 data Level = Regular Int | Surgery Int
 
@@ -303,15 +327,24 @@ enemyTurn :: GameState -> GameState
 enemyTurn g@(GameState gs) = foldrWithIndex enemyAction g gs.enemies
 
 enemyAction :: EnemyId -> Enemy -> GameState -> GameState
-enemyAction eid (Enemy e) (GameState gs) =
-  let target = e.location + (intVecToDir $ gs.p - e.location)
-      moveDir = intVecToDir $ gs.p - e.location
-      newE = if isPassable target (GameState gs)
-               then Enemy e { location = e.location + moveDir }
+enemyAction eid (Enemy e) = withRandom \g@(GameState gs) -> do
+  let candidates = Direction.directions8 <#> \dir ->
+                   let target = move dir e.location in
+                     { dir, target
+                     , dist: fromMaybe 1000 $ Map.lookup target gs.playerDistanceMap
+                     }
+      minDist = fromMaybe 1000 $ minimum (candidates <#> _.dist)
+      goodCandidates = Array.filter (\c -> c.dist == minDist) candidates
+  {dir, target, dist} <- R.unsafeElement goodCandidates
+  let newE = if isPassable target (GameState gs) && dist < 1000
+               then Enemy e { location = target }
                else Enemy e
-   in if target == gs.p
-      then enemyAttack (GameState gs) eid
-      else enemyMove (GameState gs) eid newE moveDir
+  pure $ case dist < 1000, target == gs.p of
+       false,_ -> g
+       true, true -> enemyAttack g eid
+       true, false -> enemyMove g eid
+         (Enemy e {location = target})
+         (Direction.dirVector dir)
 
 enemyMove :: GameState -> EnemyId -> Enemy -> Vector Int -> GameState
 enemyMove (GameState gs) eid newE moveDir = GameState gs{ enemies = Map.insert eid newE gs.enemies }
