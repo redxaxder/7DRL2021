@@ -18,8 +18,7 @@ import Control.Alt ((<|>))
 type Block =
   { x:: Int, y:: Int, width:: Int, height:: Int }
 
-type Room = Array Block
-
+type Room = Block
 {-
 
 [x] step 1
@@ -157,10 +156,7 @@ blocksAreAdjacent a b =
 
 
 roomsAreAdjacent :: Room -> Room -> Boolean
-roomsAreAdjacent xs ys = any (\{a,b} -> blocksAreAdjacent a b) $ do
-  a <- xs
-  b <- ys
-  pure {a,b}
+roomsAreAdjacent = blocksAreAdjacent
 
 data Overlap = SubsetLT
   | SubsetGT
@@ -262,9 +258,8 @@ type Result =
 generateMapFull :: Conf -> Random Result
 generateMapFull c = do
   let startingBlock = {x:1, y:1, width: c.width -2 , height: c.height -2 }
-  blocks <- recursivelySubdivide c.minBlock c.maxBlock startingBlock
-  let rooms = Array.singleton <$> blocks
-      roomAdjacency = adjacencyMap rooms roomsAreAdjacent
+  rooms <- recursivelySubdivide c.minBlock c.maxBlock startingBlock
+  let roomAdjacency = adjacencyMap rooms roomsAreAdjacent
   doors <- genDoors roomAdjacency
   pure $
     { rooms
@@ -298,9 +293,6 @@ blockAdjacencies a b = case areKissing sa.h sb.h of
   sb = unproduct b
 
 roomAdjacencies :: Room -> Room -> Array (Vector Int)
-roomAdjacencies as bs = do
-  a <- as
-  b <- bs
-  blockAdjacencies a b
+roomAdjacencies = blockAdjacencies
 
 

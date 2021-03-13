@@ -68,8 +68,9 @@ newState = do
     , level: Surgery 1
     , availableOrgans: exampleOrgans
     , events: []
-    , terrain: bareMap
     , rng: random
+    , terrain: bareMap
+    , rooms: []
     }
     # genNewMap
     # recalculatePDMap
@@ -146,6 +147,9 @@ isWall v t = (==) Wall $ fromMaybe Floor (LI.index t v)
 
 isFloor :: Vector Int -> LinearIndex Terrain -> Boolean
 isFloor v t = (==) Floor $ fromMaybe Floor (LI.index t v)
+
+isOpenDoor :: Vector Int -> LinearIndex Terrain -> Boolean
+isOpenDoor v t = (==) DoorOpen $ fromMaybe Floor (LI.index t v)
 
 step :: GameState -> GameAction -> Either FailedAction GameState
 step gs = handleAction (clearEvents <<< checkDeath $ gs)
@@ -229,6 +233,7 @@ newtype GameState = GameState
   , playerDistanceMap :: Map (Vector Int) Int
   , enemies :: Map EnemyId Enemy
   , terrain :: LinearIndex Terrain
+  , rooms :: Array Terrain.Room
   , level :: Level
   , availableOrgans :: OrganBag
   , events :: Array Event
@@ -239,7 +244,6 @@ withRandom :: (GameState -> R.Random GameState) -> GameState -> GameState
 withRandom f gs@(GameState g) =
   let {result: (GameState nextG), nextGen} = R.runRandom (f gs) g.rng
    in GameState nextG{ rng = nextGen }
-
 
 genNewMap :: GameState -> GameState
 genNewMap = withRandom $ \(GameState gs) -> do
@@ -253,18 +257,19 @@ genNewMap = withRandom $ \(GameState gs) -> do
   let terrain = bareMap
               # carveRooms rooms
               # Terrain.placeDoors doors
-  pure $ GameState gs {terrain = terrain}
+  pure $ GameState gs
+    { terrain = terrain
+    , rooms = rooms
+    }
 
 recalculatePDMap :: GameState -> GameState
 recalculatePDMap (GameState gs) =
-  let -- adjacency
-      -- filter by isFloor
-      start = gs.p
+  let start = gs.p
       expand x = do
          d <- Direction.directions4
          let x' = move d x
          guard $ inWorldBounds x' gs.terrain
-         guard $ isFloor x' gs.terrain
+         guard $ (isFloor x' gs.terrain || isOpenDoor x' gs.terrain)
          pure x'
       newMap = Solver.distanceMap start expand
    in GameState gs { playerDistanceMap = newMap }
