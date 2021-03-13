@@ -2,6 +2,7 @@ module Data.Board where
 
 import Extra.Prelude
 import Data.Array as Array
+import Data.Array.NonEmpty as NonEmpty
 import Data.Tuple as Tuple
 import Data.RevMap (RevMap)
 import Data.RevMap as RevMap
@@ -179,10 +180,13 @@ randomUninjuredSpace (Board b) =
     uninjured = Array.filter (\x -> not $ Set.member x b.injuries) cart
    in R.unsafeElement uninjured
 
-randomInjuredSpace :: Board -> R.Random BoardCoord
-randomInjuredSpace (Board b) =
-  let injured = Set.toUnfoldable b.injuries
-  in R.unsafeElement injured
+randomInjuredSpace :: Board -> R.Random (Maybe BoardCoord)
+randomInjuredSpace (Board b) = b.injuries
+  # Set.toUnfoldable
+  # NonEmpty.fromArray
+  # case _ of
+         Nothing -> pure Nothing
+         Just x -> Just <$> R.element x
 
 newtype Health = Health
   { hpCount :: Int

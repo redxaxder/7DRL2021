@@ -4,7 +4,6 @@ import Extra.Prelude
 import Framework.Direction (Direction, move)
 import Framework.Direction as Direction
 import Data.Array as Array
-import Data.Array as Array
 import Data.Array.NonEmpty as NonEmpty
 import Data.Set as Set
 import Data.Map as Map
@@ -272,7 +271,6 @@ isPassable t (GameState gs) =
   inWorldBounds t gs.terrain
   && not (isWall t gs.terrain)
   && not (any (enemyOnSpace t) gs.enemies)
-  && t /= gs.p
 
 isExit :: Vector Int -> GameState -> Boolean
 isExit v (GameState gs) = case LI.index gs.terrain v of
@@ -541,18 +539,22 @@ enemyAction eid (Enemy e) = withRandom \g@(GameState gs) -> do
                      { dir, target
                      , dist: fromMaybe 1000 $ Map.lookup target gs.playerDistanceMap
                      }
-      minDist = fromMaybe 1000 $ minimum (candidates <#> _.dist)
-      goodCandidates = Array.filter (\c -> c.dist == minDist) candidates
-  {dir, target, dist} <- R.unsafeElement goodCandidates
-  let newE = if isPassable target (GameState gs) && dist < 1000
+      isFree {target:t} =  isNothing (getEnemyAtPosition t g) && isPassable t g
+      freeSpaces = Array.filter isFree candidates
+      minDist = fromMaybe 1000 $ minimum (freeSpaces <#> _.dist)
+      goodCandidates = Array.filter (\c -> c.dist == minDist) freeSpaces
+  case NonEmpty.fromArray goodCandidates of
+       Nothing -> pure g
+       Just c -> do
+         {dir, target, dist} <- R.element c
+         let newE = if dist < 1000
                then Enemy e { location = target }
                else Enemy e
-  pure $ case dist < 1000, target == gs.p of
-       false,_ -> g
-       true, true -> enemyAttack g eid
-       true, false -> enemyMove g eid
-         (Enemy e {location = target})
-         (Direction.dirVector dir)
+         pure $ case dist < 1000, target == gs.p of
+               false,_ -> g
+               true, true -> enemyAttack g eid
+               true, false -> enemyMove g eid newE
+                 (Direction.dirVector dir)
 
 enemyMove :: GameState -> EnemyId -> Enemy -> Vector Int -> GameState
 enemyMove (GameState gs) eid newE moveDir = GameState gs{ enemies = Map.insert eid newE gs.enemies }
@@ -604,17 +606,20 @@ removeOrgan pos (GameState g) =
    in GameState g{playerHealth = mkHealth (Board newBoard)}
 
 healOne :: GameState -> R.Random GameState
-healOne (GameState g) =
+healOne gs@(GameState g) =
   let
     (Health h) = g.playerHealth
     (Board b) = h.board
     hp = h.hpCount
   in do
-    bc <- randomInjuredSpace (Board b)
-    let newI = Set.delete bc b.injuries
-    let newB = Board b { injuries = newI }
-    let newH = Health h { hpCount = hpCount newB, board = newB}
-    pure $ GameState g { playerHealth = newH }
+    mbc <- randomInjuredSpace (Board b)
+    case mbc of
+         Nothing -> pure gs
+         Just bc -> do
+            let newI = Set.delete bc b.injuries
+            let newB = Board b { injuries = newI }
+            let newH = Health h { hpCount = hpCount newB, board = newB}
+            pure $ GameState g { playerHealth = newH }
 
 healMany :: Item -> GameState -> R.Random GameState
 healMany (Item i) (GameState gs) =
