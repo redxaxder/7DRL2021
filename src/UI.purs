@@ -34,7 +34,7 @@ import Data.Board
   , Health (..)
   , organAt
   )
-import Data.Terrain (Terrain)
+import Data.Terrain (Terrain, arena)
 import GameState
   ( GameState (..)
   , GameAction (..)
@@ -502,13 +502,13 @@ rightPaneBorder :: Number
 rightPaneBorder = 1.0
 
 centerPaneTiles :: Number
-centerPaneTiles = 40.0
+centerPaneTiles = toNumber arena.width
 
 rightPaneTiles :: Number
 rightPaneTiles = 9.0
 
 verticalTiles :: Number
-verticalTiles = 40.0
+verticalTiles = toNumber arena.height
 
 tileSize :: Number
 tileSize = 20.0

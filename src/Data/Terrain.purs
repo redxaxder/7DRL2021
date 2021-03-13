@@ -15,6 +15,12 @@ import Data.LinearIndex (LinearIndex)
 data Terrain = Wall | Floor | Exit
 derive instance terrainEq :: Eq Terrain
 
+arena :: {width :: Int, height :: Int}
+arena = {width:20,height:20}
+
+bareMap :: LinearIndex Terrain
+bareMap = L.fill arena.width arena.height Wall
+
 charToTerrain :: Char -> Terrain
 charToTerrain '.' = Floor
 charToTerrain '>' = Exit
@@ -29,12 +35,11 @@ carve :: Position -> LinearIndex Terrain -> LinearIndex Terrain
 carve p t = unsafeFromJust $ L.insertAt p Floor t
 
 carveBlock :: Block -> LinearIndex Terrain -> LinearIndex Terrain
-carveBlock b terrain =
-  foldl (\t p -> carve p t) terrain positions
+carveBlock b terrain = foldl (\t p -> carve p t) terrain positions
   where
   positions = do
      x <- Array.range b.x (b.width + b.x - 1)
-     y <- Array.range b.y (b.height + b.x - 1)
+     y <- Array.range b.y (b.height + b.y - 1)
      pure (V{x,y})
 
 carveRoom :: Array Block -> LinearIndex Terrain -> LinearIndex Terrain

@@ -8,6 +8,7 @@ import Random (Random)
 import Random as R
 import Data.Traversable (scanl)
 import Data.FunctorWithIndex (mapWithIndex)
+import Data.FoldableWithIndex (foldlWithIndex)
 
 import Control.Monad.Rec.Class (Step (..), tailRecM)
 
@@ -59,14 +60,19 @@ type Room = Array Block
 -- len is the number of interior spots
 type Interval = { start :: Int, len :: Int }
 
+expandInterval :: Interval -> Array Int
+expandInterval {start, len} = Array.range start (len + start - 1)
+
 partition :: Int -> Int -> Random (Array Int)
 partition min n =
-  case n < 2*min+1, n < 3*min+2 of
+  let result = case n >= 2*min+1, n >= 3*min+2 of
        false,_ -> pure [n]
        true,false -> splitinto2
-       true,true -> R.chance 50 >>= case _ of
+       true,true -> R.chance 80 >>= case _ of
          true -> splitinto2
          false -> splitinto3
+   in result <#> \x -> let _ = spy "hmm" {x,n} in x
+
   where
     splitinto2 = do -- must split in two
          let s = n - 1
@@ -75,7 +81,7 @@ partition min n =
          let remainder = n - split - 1
          pure [split,remainder]
     splitinto3 =  do --can split into 2 or 3
-         let s = n - 2
+         let s = n - 2 -- no room for walls?!
              max1 = s - 2*min
          split1 <- R.intRange min max1
          let max2 = s - split1 - min
@@ -86,12 +92,12 @@ partition min n =
 subdivideInterval :: Int -> Interval -> Random (Array Interval)
 subdivideInterval minSize {start,len} = do
   lens <- partition minSize len
-  let starts = lens
+  let starts = spy "starts" $ lens
         # Array.init
         # unsafeFromJust
-        # scanl (+) 0
-        # mapWithIndex (+)
-        # Array.cons 0
+        # scanl (+) start
+        # mapWithIndex (\i x -> x + i + 1)
+        # Array.cons start
   pure $ Array.zipWith (\s l -> {start:s,len:l}) starts lens
 
 subdivide :: Int -> Block -> Random (Array Block)
@@ -117,6 +123,7 @@ recursivelySubdivide minSize maxSize block = tailRecM go
     go {complete, incomplete} =
          let {no,yes} = Array.partition (tooBig maxSize) incomplete
              completeNew = complete <> no
+             _ = spy "len" (Array.length yes)
           in if Array.null yes
              then pure $ Done completeNew
              else do
@@ -146,6 +153,21 @@ blocksAreAdjacent a b =
       sb = unproduct b
    in     (areKissing sa.h sb.h && not (disjoint sa.v sb.v))
        || (areKissing sa.v sb.v && not (disjoint sa.h sb.h))
+
+adjacencies :: Block -> Block -> Array (Vector Int)
+adjacencies a b = case areKissing sa.h sb.h of
+  true ->
+    let ys = Array.intersect (expandInterval sa.v) (expandInterval sb.v)
+        x = max a.x b.x - 1
+     in ys <#> \y -> V{x,y}
+  false ->
+    let xs = Array.intersect (expandInterval sa.h) (expandInterval sb.h)
+        y = max a.y b.y -1
+     in xs <#> \x -> V{x,y}
+  where
+  sa = unproduct a
+  sb = unproduct b
+
 
 roomsAreAdjacent :: Room -> Room -> Boolean
 roomsAreAdjacent xs ys = any (\{a,b} -> blocksAreAdjacent a b) $ do
@@ -210,6 +232,15 @@ adjacencyMap points adj = {points,edges}
     pure {a,b}
   edges = foldl (\m {a,b} -> Map.insertWith (<>) a [b] m) Map.empty pairs
 
+getEdges :: forall a. AdjMap a -> Array {a :: Int, b :: Int}
+getEdges {edges} = edges
+  # foldlWithIndex (\a arr targets -> arr <> do
+                   b <- targets
+                   guard $ a < b
+                   pure {a,b}
+        )
+    []
+
 listAdjacent :: forall x. AdjMap x -> L x -> Array (L x)
 listAdjacent {edges, points} {label} =
   let ls = unsafeFromJust (Map.lookup label edges)
@@ -237,17 +268,12 @@ type Result =
   }
 
 
-{-
-door :: Room -> Room -> Maybe (Random (Vector Int))
-door =
-  -}
-
 generateMapFull :: Conf -> Random Result
 generateMapFull c = do
-  let startingBlock = {x:0, y:0, width: c.width, height: c.height}
+  let startingBlock = {x:1, y:1, width: c.width -2 , height: c.height -2 }
   blocks <- recursivelySubdivide c.minBlock c.maxBlock startingBlock
   let rooms = Array.singleton <$> blocks
-      -- roomAdjacency = adjacencyMap rooms roomsAreAdjacent
+      roomAdjacency = adjacencyMap rooms roomsAreAdjacent
   pure $
     { rooms
     , entrance: V{x:1,y:2}

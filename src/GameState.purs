@@ -15,6 +15,8 @@ import Data.Position (Position (..))
 import Data.Terrain
   (Terrain (..), demoTerrain, charToTerrain
   , flatten
+  , arena
+  , bareMap
   , carveRooms
   )
 import Data.Ord (abs)
@@ -53,15 +55,16 @@ newState :: Effect GameState
 newState = do
   random <- R.newGen
   pure $ GameState
-   { p: startingPos
-   , playerHealth: freshPlayerHealth
-   , enemies: exampleEnemies
-   , level: Surgery 1
-   , availableOrgans: exampleOrgans
-   , events: []
-   , terrain: fromMaybe (LI.fill 40 40 Floor) (freshTerrainFromString demoTerrain)
-   , rng: random
-   }
+    { p: startingPos
+    , playerHealth: freshPlayerHealth
+    , enemies: exampleEnemies
+    , level: Surgery 1
+    , availableOrgans: exampleOrgans
+    , events: []
+    , terrain: bareMap
+    , rng: random
+    }
+    # genNewMap
 
 startingPos :: Vector Int
 startingPos = V {x: 1, y: 1}
@@ -102,7 +105,9 @@ exampleOrgans = emptyBag
 
 freshTerrainFromString :: String -> Maybe (LinearIndex Terrain)
 freshTerrainFromString s =
-  if String.length s' == 40*40 then Just $ LinearIndex {width: 40, height: 40, values: t} else Nothing
+  if String.length s' == arena.width*arena.height
+    then Just $ LinearIndex {width: arena.width, height: arena.height, values: t}
+    else Nothing
   where
     t = map charToTerrain $ toCharArray s'
     s' = flatten s
@@ -208,9 +213,6 @@ data Event =
   | PlayerDied
   | EnemyDied EnemyId
 
-arena :: {width :: Int, height :: Int}
-arena = {width:20,height:20}
-
 newtype GameState = GameState
   { p :: Vector Int
   , playerHealth :: Health
@@ -233,16 +235,13 @@ genNewMap = withRandom $ \(GameState gs) -> do
   let {width,height} = arena
       conf = { width
              , height
-             , minBlock: 4
-             , maxBlock: 12
+             , minBlock: 3
+             , maxBlock: 8
              }
-  {rooms, entrance,exit,doors} <-  G.generateMapFull todo
-  let baseTerrain = LI.fill width height Wall
-      terrain = carveRooms rooms baseTerrain
+  {rooms, entrance,exit,doors} <-  G.generateMapFull conf
+  let terrain = spy "carving" $ carveRooms rooms bareMap
+      _ = spy "rooms" rooms
   pure $ GameState gs {terrain = terrain}
-       -- terrain = (LI.fill 40 40 Wall)
-         
-
 
 data Level = Regular Int | Surgery Int
 

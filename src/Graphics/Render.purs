@@ -93,8 +93,8 @@ resetDebug (RendererState r) = Ref.write initDebug r.debug
 
 debugInfo :: RendererState -> Effect Unit
 debugInfo (RendererState rs) = do
-  y <- Ref.read rs.debug
-  let _ = spy "d" y
+  -- y <- Ref.read rs.debug
+  -- let _ = spy "d" y
   pure unit
 
 note :: RendererState -> Effect Unit
