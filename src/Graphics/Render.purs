@@ -274,7 +274,7 @@ centerPaneMap t (UIState uis) (GameState gs) rs = do
           image = case terrain of
                    Wall -> "wall.png"
                    Floor -> "ground.png"
-                   Exit -> "placeholder.png"
+                   Exit -> "exit.png"
                    DoorClosed -> "doorclosed.png"
                    DoorOpen -> "dooropen.png"
       in drawImage rs image { x, y, width: tileSize, height: tileSize }
