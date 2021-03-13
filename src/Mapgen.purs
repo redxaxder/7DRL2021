@@ -154,19 +154,6 @@ blocksAreAdjacent a b =
    in     (areKissing sa.h sb.h && not (disjoint sa.v sb.v))
        || (areKissing sa.v sb.v && not (disjoint sa.h sb.h))
 
-adjacencies :: Block -> Block -> Array (Vector Int)
-adjacencies a b = case areKissing sa.h sb.h of
-  true ->
-    let ys = Array.intersect (expandInterval sa.v) (expandInterval sb.v)
-        x = max a.x b.x - 1
-     in ys <#> \y -> V{x,y}
-  false ->
-    let xs = Array.intersect (expandInterval sa.h) (expandInterval sb.h)
-        y = max a.y b.y -1
-     in xs <#> \x -> V{x,y}
-  where
-  sa = unproduct a
-  sb = unproduct b
 
 
 roomsAreAdjacent :: Room -> Room -> Boolean
@@ -216,6 +203,10 @@ type AdjMap x =
   , points :: Array x
   }
 
+lookup :: forall x. Int -> AdjMap x -> x
+lookup i {points} = unsafeIndex points i
+
+
 -- labelled
 type L b = { value :: b, label :: Int }
 
@@ -264,7 +255,7 @@ type Result =
   { rooms :: Array Room
   , entrance :: Vector Int
   , exit :: Vector Int
-  , doors :: Array (Vector Int)
+  , doors :: Array Door
   }
 
 
@@ -274,9 +265,42 @@ generateMapFull c = do
   blocks <- recursivelySubdivide c.minBlock c.maxBlock startingBlock
   let rooms = Array.singleton <$> blocks
       roomAdjacency = adjacencyMap rooms roomsAreAdjacent
+  doors <- genDoors roomAdjacency
   pure $
     { rooms
     , entrance: V{x:1,y:2}
     , exit: V{x:1,y:4}
-    , doors: []
+    , doors
     }
+
+type Door =
+  { pos :: Vector Int
+  , connectedRooms :: Array Int
+  }
+
+genDoors :: AdjMap Room -> Random (Array Door)
+genDoors rooms = for (getEdges rooms) \{a,b} -> do
+  pos <- R.unsafeElement $ roomAdjacencies (lookup a rooms) (lookup b rooms)
+  pure {pos, connectedRooms: [a,b]}
+
+blockAdjacencies :: Block -> Block -> Array (Vector Int)
+blockAdjacencies a b = case areKissing sa.h sb.h of
+  true ->
+    let ys = Array.intersect (expandInterval sa.v) (expandInterval sb.v)
+        x = max a.x b.x - 1
+     in ys <#> \y -> V{x,y}
+  false ->
+    let xs = Array.intersect (expandInterval sa.h) (expandInterval sb.h)
+        y = max a.y b.y -1
+     in xs <#> \x -> V{x,y}
+  where
+  sa = unproduct a
+  sb = unproduct b
+
+roomAdjacencies :: Room -> Room -> Array (Vector Int)
+roomAdjacencies as bs = do
+  a <- as
+  b <- bs
+  blockAdjacencies a b
+
+

@@ -19,6 +19,7 @@ import Data.Terrain
   , bareMap
   , carveRooms
   )
+import Data.Terrain as Terrain
 import Data.Ord (abs)
 import Mapgen as G
 import Data.Board
@@ -239,8 +240,9 @@ genNewMap = withRandom $ \(GameState gs) -> do
              , maxBlock: 8
              }
   {rooms, entrance,exit,doors} <-  G.generateMapFull conf
-  let terrain = spy "carving" $ carveRooms rooms bareMap
-      _ = spy "rooms" rooms
+  let terrain = bareMap
+              # carveRooms rooms
+              # Terrain.placeDoors doors
   pure $ GameState gs {terrain = terrain}
 
 data Level = Regular Int | Surgery Int

@@ -249,6 +249,8 @@ centerPaneMap t (UIState uis) (GameState gs) rs = do
                   Wall -> "wall.png"
                   Floor -> "ground.png"
                   Exit -> "placeholder.png"
+                  DoorClosed -> "doorclosed.png"
+                  DoorOpen -> "dooropen.png"
      in drawImage rs image { x, y, width: tileSize, height: tileSize }
 
 drawCenterPaneAnimations

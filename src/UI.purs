@@ -644,6 +644,8 @@ imagePaths =
   , "Heart4.png"
   , "Heart4injured.png"
   , "placeholder.png"
+  , "doorclosed.png"
+  , "dooropen.png"
   ]
 
 audioPaths :: Array String
