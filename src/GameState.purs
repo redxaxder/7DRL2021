@@ -217,28 +217,28 @@ handleAction :: GameState -> GameAction -> Either FailedAction GameState
 handleAction g@(GameState gs) a@(Move dir) =
   let
     p' = move dir gs.p
-    {item, iid} = getItem p' (GameState gs)
-   in case isPassable p' g, isExit p' g, isItem p' g of
+   in case isPassable p' g, isExit p' g, getItem p' g of
       false, _, _ -> Left (FailedAction dir)
-      true,false,false -> Right $ (GameState gs {p = p'})
-                      # reportEvent (PlayerMoved dir)
-                      # revealRooms
-                      # recalculatePDMap
-                      # enemyTurn
-      true,false,true -> Right $ (GameState gs {p = p'}) 
-                      # withRandom (healMany $ unsafeFromJust item)
-                      # useItem (unsafeFromJust iid)
-                      # reportEvent (PlayerMoved dir)
-                      # openDoorAt p'
-                      # revealRooms
-                      # reportEvent (ItemUsed $ unsafeFromJust item)
-                      # recalculatePDMap
-                      # enemyTurn
+      true,false,Nothing -> Right $ (GameState gs {p = p'})
+        # reportEvent (PlayerMoved dir)
+        # openDoorAt p'
+        # revealRooms
+        # recalculatePDMap
+        # enemyTurn
+      true,false,Just{item,iid} -> Right $ (GameState gs {p = p'}) 
+        # withRandom (healMany item)
+        # openDoorAt p'
+        # useItem iid
+        # reportEvent (PlayerMoved dir)
+        # reportEvent (ItemUsed item)
+        # revealRooms
+        # recalculatePDMap
+        # enemyTurn
       true,true,_ -> Right $ (GameState gs {p = p'})
-                      # goToNextLevel
-                      # reportEvent (PlayerMoved dir)
-                      # genNewMap
-                      # recalculatePDMap
+        # goToNextLevel
+        # reportEvent (PlayerMoved dir)
+        # genNewMap
+        # recalculatePDMap
 
 handleAction (GameState gs) a@(Attack bc eid) =
   let menemy = Map.lookup eid gs.enemies
@@ -282,13 +282,12 @@ isExit v (GameState gs) = case LI.index gs.terrain v of
 isItem :: Vector Int -> GameState -> Boolean
 isItem v (GameState gs) = any (itemOnSpace v) gs.items
 
-getItem :: Vector Int -> GameState -> { item :: Maybe Item, iid :: Maybe ItemId }
-getItem v (GameState gs) =
-  let
-    newM = Map.filter (\(Item i) -> i.location == v) gs.items
-    item = List.head (Map.values newM)
-    iid = Array.head $ Set.toUnfoldable (Map.keys newM)
-  in { item, iid }
+getItem :: Vector Int -> GameState -> Maybe { item :: Item, iid :: ItemId }
+getItem v (GameState gs) = do
+  let newM = Map.filter (\(Item i) -> i.location == v) gs.items
+  item <- List.head (Map.values newM)
+  iid <- Array.head $ Set.toUnfoldable (Map.keys newM)
+  pure { item, iid }
 
 inWorldBounds :: Vector Int -> LinearIndex Terrain -> Boolean
 inWorldBounds (V{x,y}) (LinearIndex t) =
