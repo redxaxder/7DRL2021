@@ -156,8 +156,8 @@ handleAction (GameState gs) a@(Attack bc eid) =
   let menemy = Map.lookup eid gs.enemies
    in case menemy of
     Nothing -> Left FailedAttack
-    Just enemy -> Right $ reportEvent (PlayerAttacked eid)
-        $ handleEnemyInjury (GameState gs) enemy eid bc
+    Just enemy -> Right $ handleEnemyInjury (GameState gs) enemy eid bc
+        # reportEvent (PlayerAttacked eid)
         # enemyTurn
 handleAction g a@(InstallOrgan organ bc) =
   if canInstallOrgan bc organ g
@@ -172,10 +172,11 @@ handleAction (GameState gs) _ = Right $ GameState gs
 handleEnemyInjury :: GameState -> Enemy -> EnemyId -> BoardCoord -> GameState
 handleEnemyInjury (GameState gs) (Enemy e) eid bc =
   let
-    (Health h) = e.health
+    (Enemy newE) = injureEnemy bc (Enemy e)
+    (Health h) = newE.health
   in if h.hpCount <= 0
      then GameState gs {enemies = Map.delete eid gs.enemies} # reportEvent (EnemyDied eid)
-     else (GameState gs {enemies = Map.insert eid (injureEnemy bc (Enemy e)) gs.enemies})
+     else (GameState gs {enemies = Map.insert eid (Enemy newE) gs.enemies})
 
 isPassable :: Vector Int -> GameState -> Boolean
 isPassable t (GameState gs) =
