@@ -469,21 +469,25 @@ o organ weight = {organ, weight}
 
 generatableOrgans :: Array OrganGen
 generatableOrgans =
-  [ o playerHpOrgan 5
+  [ o playerHpOrgan 6
   , o eyeRed 2
-  , o eyeBlue 2
+  , o eyeBlue 1
   , o hpOrgan1 1
   ]
 
 genSurgeryRoomOrgans  :: GameState -> GameState
 genSurgeryRoomOrgans = withRandom \g@(GameState gs) -> do
-  let d = spy "d" $ levelDepth gs.level
+  let d = levelDepth gs.level
   numOrgans <- R.intRange 2 (2 + d)
   locations <- rollLocations numOrgans {x:0, y:0, width:8, height:8}
   organs <- for (locations) \pos ->
     _.organ <$> R.unsafeWeightedElement "genSurgery" _.weight generatableOrgans
-  let available = foldr
-         (\(Tuple pos organ) bag -> Board.insertOrgan pos organ bag)
+  let tryInsertOrgan pos organ bag =
+        if Board.canInsertOrgan pos organ bag
+          then Board.insertOrgan pos organ bag
+          else bag
+      available = foldr
+         (\(Tuple pos organ) bag -> tryInsertOrgan pos organ bag)
          Board.emptyBag
          (Array.zip locations organs)
   pure (GameState gs{ availableOrgans = available })
