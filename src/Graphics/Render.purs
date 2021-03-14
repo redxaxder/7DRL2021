@@ -310,7 +310,7 @@ blink :: Instant -> Int -> Boolean
 blink t f = Math.remainder ms interval > 100.0
   where
   ms = t # unInstant # un Milliseconds
-  interval = 200.0 + (Math.sqrt $ (toNumber f * 100000.0 - 200.0))
+  interval = 100.0 + (toNumber f * 100.0)
 
 drawDraggedOrgan :: UIState -> GameState -> RendererState -> Effect Unit
 drawDraggedOrgan (UIState{draggingOrgan}) gs rs@(RendererState r) = do
