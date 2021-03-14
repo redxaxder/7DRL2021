@@ -9,6 +9,7 @@ import Data.Map as Map
 import Data.DateTime.Instant (unInstant)
 import Data.Time.Duration (Milliseconds (..))
 import Data.Int as Int
+import Data.String as String
 import Effect.Exception (error)
 import Effect.Ref as Ref
 import Math (round, sin)
@@ -16,9 +17,11 @@ import Math as Math
 import Effect.Ref (Ref)
 import Graphics.Canvas as Canvas
 import Data.Set as Set
+import Data.Traversable (scanl)
 import Data.LinearIndex as LI
 import Data.Enemy as Enemy
 import Data.Board as Board
+import Data.Tuple as Tuple
 import Data.Board
   ( Board(..)
   , Clue (..)
@@ -489,9 +492,23 @@ wrapText
   -> Vector Number
   -> Number
   -> Effect Unit
-wrapText vars string loc _maxWidth =
-  --let splits = String.split (Pattern " ") string
-  drawText vars tileSize string loc
+wrapText vars string (V loc) _maxWidth =
+  let splits = splitOnSize string 11
+      indices = scanl (\b a -> 1 + b) 0 splits
+      splens = Array.zip indices splits
+  in for_ splens \(Tuple i s) -> do
+    drawText vars tileSize s (V loc {y = loc.y + tileSize * (toNumber $ i - 1)})
+
+splitOnSize :: String -> Int -> Array String
+splitOnSize s size =
+  let splits = String.split (String.Pattern " ") s
+      lens = scanl (\b a -> b + (String.length a)) 0 splits
+      splens = Array.zip lens splits
+      start =  String.joinWith " " $ map Tuple.snd (Array.takeWhile (\x -> Tuple.fst x < size) splens)
+      rest = map Tuple.snd (Array.dropWhile (\x -> Tuple.fst x < size) splens)
+      trail = String.joinWith " " rest
+  in if Array.length rest > 0 then [start] <> splitOnSize trail size else [start]
+
 
 {-
 dirtyCheck :: Array Rectangle -> Rectangle -> Boolean
