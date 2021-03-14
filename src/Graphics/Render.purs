@@ -266,10 +266,13 @@ drawCenterPane
        NewGame -> do
          clear rs centerPaneRect
          let x = centerPaneRect.x
-             y = centerPaneRect.y + centerPaneRect.height - tileSize * 4.0
+             y = centerPaneRect.y + centerPaneRect.height - tileSize * 8.0
              size = tileSize / 2.0
              say s p = drawText rs size s p
-         say "Press any key to start" (V{x,y})
+         say "You have been stranded on the dump moon Detritus-7." (V{x,y})
+         say "It is swarming with deadly robots." (V{x,y: y + tileSize * 1.0})
+         say "Can you escape before they overwhelm you?" (V{x, y: y + tileSize * 2.0})
+         say "Press any key to start" (V{x,y: y + tileSize * 4.0})
          cacheScreen rs
        Victory -> do
          clear rs centerPaneRect
