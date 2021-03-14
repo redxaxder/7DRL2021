@@ -377,18 +377,23 @@ genNewMap = withRandom $ \(GameState gs) -> do
              , minBlock: 3
              , maxBlock: 8
              }
-  { rooms, entrance,exit,doors } <-  G.generateMapFull conf
+  { rooms, entrance,exit,doors } <- G.generateMapFull conf
   let terrain = bareMap
               # carveRooms rooms
               # Terrain.placeDoors doors
               # Terrain.placeExit exit
       roomInfo = rooms <#> \room ->
         { room, perimeter: Terrain.perimeter room, visible: false}
+      candidatePlayerLocs =
+        Array.cons gs.p (Direction.directions8 <#> \d -> move d gs.p)
+        # Array.filter (\p -> LI.index terrain p == Just Floor)
+  newP <- R.unsafeElement "spawnlocation" candidatePlayerLocs
   pure $ GameState gs
     { terrain = terrain
     , rooms = Map.fromFoldable (Array.zip rooms roomInfo)
     , enemies = Map.empty
     , items = Map.empty
+    , p = newP
     }
 
 genNewOrgans :: GameState -> GameState
@@ -407,25 +412,29 @@ recalculatePDMap (GameState gs) =
    in GameState gs { playerDistanceMap = newMap }
 
 populateRoom :: GameState -> Room -> Random GameState
-populateRoom g room = do
+populateRoom g@(GameState gs) room = do
   let weight 0 = 2
       weight 1 = 4
       weight _ = 2
   numberOfEnemies <- R.unsafeWeightedElement "populateRoom" weight [0,1,2]
-  {head, tail} <- (unsafeFromJust <<< Array.uncons) <$>
+  muncons <- (Array.uncons <<< Array.filter (\x -> x /= gs.p)) <$>
                      rollLocations (1 + numberOfEnemies) room
-  item <- genItem head g
-  enemies <- for tail \p -> genEnemy p g
-  pure $ g
-    # addItem item
-    # flip (foldr addEnemy) (Array.filter Enemy.isAlive enemies)
+  case muncons of
+    Nothing -> pure g
+    Just {head, tail}-> do
+      item <- genItem head g
+      enemies <- for tail \p -> genEnemy p g
+      pure $ g
+        # addItem item
+        # flip (foldr addEnemy) (Array.filter Enemy.isAlive enemies)
 
 rollLocations :: Int -> {x::Int,y::Int,width::Int,height::Int}
     -> Random (Array BoardCoord)
 rollLocations 0 _ = pure []
 rollLocations n room = do
   let candidates = Terrain.blockPositions room
-  for (Array.range 1 n) \_ -> R.unsafeElement "rollLocations" candidates
+  p1 <- for (Array.range 1 n) \_ -> R.unsafeElement "rollLocations" candidates
+  pure $ Array.fromFoldable (Set.fromFoldable p1)
 
 genItem :: Vector Int -> GameState -> Random Item
 genItem location (GameState gs) = do
@@ -463,21 +472,25 @@ o organ weight = {organ, weight}
 
 generatableOrgans :: Array OrganGen
 generatableOrgans =
-  [ o playerHpOrgan 5
+  [ o playerHpOrgan 6
   , o eyeRed 2
-  , o eyeBlue 2
+  , o eyeBlue 1
   , o hpOrgan1 1
   ]
 
 genSurgeryRoomOrgans  :: GameState -> GameState
 genSurgeryRoomOrgans = withRandom \g@(GameState gs) -> do
-  let d = spy "d" $ levelDepth gs.level
+  let d = levelDepth gs.level
   numOrgans <- R.intRange 2 (2 + d)
   locations <- rollLocations numOrgans {x:0, y:0, width:8, height:8}
   organs <- for (locations) \pos ->
     _.organ <$> R.unsafeWeightedElement "genSurgery" _.weight generatableOrgans
-  let available = foldr
-         (\(Tuple pos organ) bag -> Board.insertOrgan pos organ bag)
+  let tryInsertOrgan pos organ bag =
+        if Board.canInsertOrgan pos organ bag
+          then Board.insertOrgan pos organ bag
+          else bag
+      available = foldr
+         (\(Tuple pos organ) bag -> tryInsertOrgan pos organ bag)
          Board.emptyBag
          (Array.zip locations organs)
   pure (GameState gs{ availableOrgans = available })
