@@ -337,6 +337,7 @@ newGameUI uis gs@(GameState g) = do
   { time, value } <- F.input uis
   case value of
     KeyDown _ -> doAction StartNewGame time (setDirtyAll time uis) gs
+    PointerDown _ -> doAction StartNewGame time (setDirtyAll time uis) gs
     _ -> runUI uis gs
 
 --------------------------------------------------------------------------------
@@ -348,6 +349,7 @@ deadUI uis gs@(GameState g) = do
   { time, value } <- F.input uis
   case value of
     KeyDown _ -> doAction StartNewGame time (setDirtyAll time uis) gs
+    PointerDown _ -> doAction StartNewGame time (setDirtyAll time uis) gs
     _ -> runUI uis gs
 
 --------------------------------------------------------------------------------
@@ -359,6 +361,7 @@ victoryUI uis gs@(GameState g) = do
   { time, value } <- F.input uis
   case value of
     KeyDown _ -> doAction StartNewGame time (setDirtyAll time uis) gs
+    PointerDown _ -> doAction StartNewGame time (setDirtyAll time uis) gs
     _ -> runUI uis gs
 
 --------------------------------------------------------------------------------

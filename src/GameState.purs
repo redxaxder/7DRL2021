@@ -221,7 +221,9 @@ isOpenDoor :: Vector Int -> LinearIndex Terrain -> Boolean
 isOpenDoor v t = (==) DoorOpen $ fromMaybe Floor (LI.index t v)
 
 step :: GameState -> GameAction -> Either FailedAction GameState
-step gs = handleAction (clearEvents <<< checkDeath <<< cleanupItems <<< decayItems $ gs)
+step gs a = handleAction
+    (clearEvents <<< checkDeath <<< cleanupItems <<< decayItems $ gs)
+    (convertActionIfDead (checkDeath gs) a)
 
 checkDeath :: GameState -> GameState
 checkDeath (GameState gs) =
@@ -230,6 +232,10 @@ checkDeath (GameState gs) =
   in if h.hpCount <= 0
      then die (GameState gs)
      else GameState gs
+
+convertActionIfDead :: GameState -> GameAction -> GameAction
+convertActionIfDead (GameState {level: Dead}) a = StartNewGame
+convertActionIfDead _ a = a
 
 handleAction :: GameState -> GameAction -> Either FailedAction GameState
 handleAction g@(GameState gs) a@(Move dir) =
