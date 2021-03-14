@@ -61,7 +61,6 @@ perimeter r =
   let result = {x: r.x-1, y: r.y-1, width: r.width+2, height: r.height+2}
    in result
 
-
 insideBlock :: Position -> Block -> Boolean
 insideBlock (V p) b =
   let {h,v} = unproduct b
