@@ -232,6 +232,15 @@ drawCenterPane
              say s p = drawText rs size s p
          say "Press any key to start" (V{x,y})
          cacheScreen rs
+       Victory -> do
+         clear rs centerPaneRect
+         let x = centerPaneRect.x
+             y = centerPaneRect.y + centerPaneRect.height - tileSize * 4.0
+             size = tileSize / 2.0
+             say s p = drawText rs size s p
+         say "You have escaped from the dump moon. Victory!" (V{x,y})
+         cacheScreen rs
+
        Dead -> do
          clear rs centerPaneRect
          let x = centerPaneRect.x
