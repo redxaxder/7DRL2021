@@ -198,7 +198,7 @@ data Clue =
   | ConcealedClue
   | EmptyClue
 
-randomUninjuredSpace :: Board -> R.Random BoardCoord
+randomUninjuredSpace :: Board -> R.Random (Maybe BoardCoord)
 randomUninjuredSpace (Board b) =
   let
     cart :: Array (Vector Int)
@@ -208,7 +208,9 @@ randomUninjuredSpace (Board b) =
       pure $ V {x,y}
     uninjured :: Array (Vector Int)
     uninjured = Array.filter (\x -> not $ Set.member x b.injuries) cart
-   in R.unsafeElement uninjured
+   in case NonEmpty.fromArray uninjured of
+      Nothing -> pure Nothing
+      Just x -> Just <$> R.element x
 
 randomInjuredSpace :: Board -> R.Random (Maybe BoardCoord)
 randomInjuredSpace (Board b) = b.injuries
