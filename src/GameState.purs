@@ -176,8 +176,9 @@ freshPlayerHealth = Board.fromBoard freshPlayerBoard
 freshPlayerBoard :: Board
 freshPlayerBoard = Board
   { organs: emptyBag
-      # insertOrgan (vec 0 0) playerHpOrgan
+      # insertOrgan (vec 1 1) humanEye
       # insertOrgan (vec 0 3) playerHpOrgan
+      # insertOrgan (vec 5 4) humanEye
       # insertOrgan (vec 3 0) playerHpOrgan
       # insertOrgan (vec 3 3) playerHpOrgan
   , injuries: Set.empty
@@ -188,6 +189,21 @@ hpOrgan1 = Organ (OrganSize 1 1) Hp
 
 playerHpOrgan :: Organ
 playerHpOrgan = Organ (OrganSize 2 2) PlayerHeartLarge
+
+humanEye :: Organ
+humanEye = Organ (OrganSize 1 1) HumanEye
+
+eyeRed :: Organ
+eyeRed = Organ (OrganSize 1 1) EyeRed
+
+eyeBlue :: Organ
+eyeBlue = Organ (OrganSize 1 1) EyeBlue
+
+eyeH :: Organ
+eyeH = Organ (OrganSize 1 1) EyeHoriz
+
+eyeV :: Organ
+eyeV = Organ (OrganSize 1 1) EyeVert
 
 isWall :: Vector Int -> LinearIndex Terrain -> Boolean
 isWall v t = (==) Wall $ fromMaybe Floor (LI.index t v)
@@ -217,19 +233,19 @@ handleAction g@(GameState gs) a@(Move dir) =
       false, _, _ -> Left (FailedAction dir)
       true,false,Nothing -> Right $ (GameState gs {p = p'})
         # reportEvent (PlayerMoved dir)
-        # openDoorAt p'
         # revealRooms
         # recalculatePDMap
         # enemyTurn
+        # openDoorAt p'
       true,false,Just{item,iid} -> Right $ (GameState gs {p = p'}) 
         # withRandom (healMany item)
-        # openDoorAt p'
         # useItem iid
         # reportEvent (PlayerMoved dir)
         # reportEvent (ItemUsed item)
         # revealRooms
         # recalculatePDMap
         # enemyTurn
+        # openDoorAt p'
       true,true,_ -> Right $ (GameState gs {p = p'})
         # goToNextLevel
         # reportEvent (PlayerMoved dir)
@@ -458,7 +474,7 @@ genHealth {armor, hp, injuries} = do
   hs <- rollLocations hp bounds
   is <- rollLocations injuries bounds
   pure $ freshHealth
-       -- # addOrgans as armorOrgan
+       # addOrgans as armorOrgan
        # addOrgans hs healthOrgan
        # injureMulti is
 
@@ -574,15 +590,16 @@ enemyAttack g eid = withRandom go g
   go :: GameState -> R.Random GameState
   go (GameState gs) = do
     let (Health h) = gs.playerHealth
+        canAttack = Just DoorClosed /= LI.index gs.terrain gs.p
     mattack <- randomUninjuredSpace h.board
-    case mattack of
-         Nothing -> pure g
-         Just attack -> do
-          let newHealth = injure attack gs.playerHealth
-          pure $ GameState gs { playerHealth = newHealth }
-             # if Board.isAlive newHealth
-               then reportEvent (EnemyAttacked eid attack)
-               else reportEvent PlayerDied
+    case canAttack, mattack of
+         true, Just attack -> do
+           let newHealth = injure attack gs.playerHealth
+           pure $ GameState gs { playerHealth = newHealth }
+                # if Board.isAlive newHealth
+                  then reportEvent (EnemyAttacked eid attack)
+                  else reportEvent PlayerDied
+         _,_ -> pure g
 
 --------------------------------------------------------------------------------
 --- Organs ---------------------------------------------------------------------

@@ -361,7 +361,7 @@ animItemRect t iid (Item {location}) (UIState {itemAnim}) (GameState gs) =
    in { x, y, width: tileSize, height: tileSize }
 
 drawRightPane :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
-drawRightPane t (UIState{rightPaneTarget}) (GameState gs) rs = do
+drawRightPane t (UIState{rightPaneTarget}) g@(GameState gs) rs = do
   clear rs rightPaneRect
   case rightPaneTarget of
        RPEnemy eid -> case Map.lookup eid gs.enemies of
@@ -389,7 +389,7 @@ drawRightPane t (UIState{rightPaneTarget}) (GameState gs) rs = do
                   , y: targetBoardContainerRect.y
                   })
                 drawBoardBase rs h.board targetBoardRect
-                drawEnemyBoardDetails rs n
+                drawEnemyBoardDetails rs n g
        _ -> pure unit
 
 clear :: RendererState -> Rectangle -> Effect Unit
@@ -415,8 +415,8 @@ drawBoardBase vars (Board {injuries}) {x,y} =
           , height: tileSize
           }
 
-drawEnemyBoardDetails :: RendererState -> Enemy -> Effect Unit
-drawEnemyBoardDetails rs (Enemy e) = do
+drawEnemyBoardDetails :: RendererState -> Enemy -> GameState -> Effect Unit
+drawEnemyBoardDetails rs (Enemy e) (GameState {playerHealth})= do
   let Health {board} = e.health
       anchor = let {x,y} = targetBoardRect in V{x,y}
   for_ (un Board board).injuries \v ->
@@ -424,7 +424,10 @@ drawEnemyBoardDetails rs (Enemy e) = do
      in case getOrganAtPosition board v of
           Just organ -> drawInjury rs organ drawPos
           Nothing -> case Map.lookup v e.clueCache of
-                          Just clue -> drawClue rs clue drawPos
+                          Just clue -> drawClue
+                                       rs
+                                       (Board.restrictClue playerHealth clue)
+                                       drawPos
                           Nothing -> pure unit
 
 fromGrid :: Vector Int -> Vector Number
