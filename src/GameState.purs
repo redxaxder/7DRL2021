@@ -377,18 +377,23 @@ genNewMap = withRandom $ \(GameState gs) -> do
              , minBlock: 3
              , maxBlock: 8
              }
-  { rooms, entrance,exit,doors } <-  G.generateMapFull conf
+  { rooms, entrance,exit,doors } <- G.generateMapFull conf
   let terrain = bareMap
               # carveRooms rooms
               # Terrain.placeDoors doors
               # Terrain.placeExit exit
       roomInfo = rooms <#> \room ->
         { room, perimeter: Terrain.perimeter room, visible: false}
+      candidatePlayerLocs =
+        Array.cons gs.p (Direction.directions8 <#> \d -> move d gs.p)
+        # Array.filter (\p -> LI.index terrain p == Just Floor)
+  newP <- R.unsafeElement "spawnlocation" candidatePlayerLocs
   pure $ GameState gs
     { terrain = terrain
     , rooms = Map.fromFoldable (Array.zip rooms roomInfo)
     , enemies = Map.empty
     , items = Map.empty
+    , p = newP
     }
 
 genNewOrgans :: GameState -> GameState
