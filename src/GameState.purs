@@ -412,18 +412,21 @@ recalculatePDMap (GameState gs) =
    in GameState gs { playerDistanceMap = newMap }
 
 populateRoom :: GameState -> Room -> Random GameState
-populateRoom g room = do
+populateRoom g@(GameState gs) room = do
   let weight 0 = 2
       weight 1 = 4
       weight _ = 2
   numberOfEnemies <- R.unsafeWeightedElement "populateRoom" weight [0,1,2]
-  {head, tail} <- (unsafeFromJust <<< Array.uncons) <$>
+  muncons <- (Array.uncons <<< Array.filter (\x -> x /= gs.p)) <$>
                      rollLocations (1 + numberOfEnemies) room
-  item <- genItem head g
-  enemies <- for tail \p -> genEnemy p g
-  pure $ g
-    # addItem item
-    # flip (foldr addEnemy) (Array.filter Enemy.isAlive enemies)
+  case muncons of
+    Nothing -> pure g
+    Just {head, tail}-> do
+      item <- genItem head g
+      enemies <- for tail \p -> genEnemy p g
+      pure $ g
+        # addItem item
+        # flip (foldr addEnemy) (Array.filter Enemy.isAlive enemies)
 
 rollLocations :: Int -> {x::Int,y::Int,width::Int,height::Int}
     -> Random (Array BoardCoord)
