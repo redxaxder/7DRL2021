@@ -579,15 +579,21 @@ data Target =
   | TargetTerrain Terrain
 
 getTargetAtPosition :: Vector Int -> GameState -> Target
-getTargetAtPosition p gs = case getEnemyAtPosition p gs of
-  Just eid -> TargetEnemy eid
-  Nothing -> TargetTerrain $ getTerrainAtPosition p gs
+getTargetAtPosition p gs = case getEnemyAtPosition p gs, getItemAtPosition p gs of
+  Just eid, _ -> TargetEnemy eid
+  Nothing, Just iid -> TargetItem iid
+  Nothing, Nothing -> TargetTerrain $ getTerrainAtPosition p gs
 
 getEnemyAtPosition :: Vector Int -> GameState -> Maybe EnemyId
 getEnemyAtPosition p (GameState gs) = do
   -- loop through all enemies and check if one of them is at position p
   -- if the slowness ends up mattering, we should maintain an index instead
   {index} <- findWithIndex (\eid (Enemy e) -> e.location == p) gs.enemies
+  pure index
+
+getItemAtPosition :: Vector Int -> GameState -> Maybe ItemId
+getItemAtPosition p (GameState gs) = do
+  {index} <- findWithIndex (\iid (Item i) -> i.location == p) gs.items
   pure index
 
 getTerrainAtPosition :: Vector Int -> GameState -> Terrain

@@ -408,8 +408,29 @@ animItemRect t iid (Item {location}) (UIState {itemAnim}) (GameState gs) =
    in { x, y, width: tileSize, height: tileSize }
 
 drawRightPane :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
-drawRightPane t (UIState{rightPaneTarget}) g@(GameState gs) rs = do
+drawRightPane t (UIState{rightPaneTarget,itemTarget}) g@(GameState gs) rs = do
   clear rs rightPaneRect
+  case itemTarget of
+    RPItem iid -> case Map.lookup iid gs.items of
+      Nothing -> pure unit
+      Just (Item i) -> do
+        drawText rs tileSize "Item"
+          (V { x: targetBoardContainerRect.x
+          , y: targetBoardContainerRect.y + targetBoardContainerRect.height + tileSize * 2.0
+          })
+        drawText rs tileSize "turns"
+          (V { x: targetBoardContainerRect.x
+          , y: targetBoardContainerRect.y + targetBoardContainerRect.height + tileSize * 3.0
+          })
+        drawText rs tileSize "remaining:"
+          (V { x: targetBoardContainerRect.x
+          , y: targetBoardContainerRect.y + targetBoardContainerRect.height + tileSize * 4.0
+          })
+        drawText rs tileSize (show i.decay)
+          (V { x: targetBoardContainerRect.x
+          , y: targetBoardContainerRect.y + targetBoardContainerRect.height + tileSize * 5.0
+          })
+    _ -> pure unit
   case rightPaneTarget of
        RPEnemy eid -> case Map.lookup eid gs.enemies of
               Nothing -> pure unit
@@ -426,7 +447,6 @@ drawRightPane t (UIState{rightPaneTarget}) g@(GameState gs) rs = do
                   (V { x: targetBoardContainerRect.x + tileSize
                   , y: targetBoardContainerRect.y
                   })
-
                 drawImage rs "Armor5.png"
                   { x: targetBoardContainerRect.x + tileSize * 3.0
                   , y: targetBoardContainerRect.y

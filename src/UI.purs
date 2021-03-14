@@ -62,6 +62,7 @@ type UI r =
 newtype UIState = UIState
   { rightPaneTarget :: RightPane
   , lockedTarget :: RightPane
+  , itemTarget :: RightPane
   , timestamp :: Instant
   , gsTimestamp :: Instant
   , playerAnim :: Offset
@@ -101,6 +102,7 @@ initUIState (GameState {p}) = do
   pure $ UIState
     { rightPaneTarget: RPNoTarget
     , lockedTarget: RPNoTarget
+    , itemTarget: RPNoTarget
     , timestamp: unsafeFromJust $ instant $ Milliseconds 0.0
     , gsTimestamp: unsafeFromJust $ instant $ Milliseconds 0.0
     , playerAnim: pure zero
@@ -247,6 +249,11 @@ viewTarget t pos uis@(UIState u) gs =
     target@(RPEnemy _) ->
         UIState u
         { rightPaneTarget = target
+        , timestamp = t
+        }
+    target@(RPItem _) ->
+        UIState u
+        { itemTarget = target
         , timestamp = t
         }
     _ -> toLockedTarget t uis
@@ -662,8 +669,8 @@ getAudio :: UIState -> FA.AudioSignal
 getAudio u@(UIState uis) =
   { samples, timestamp: Just uis.timestamp }
   where
-    samples = Array.filter (\{delay} -> delay >= 0.0) $
-              uis.audioQueue <#> \{ file, time } ->
+    samples = Array.filter (\ {delay} -> delay >= 0.0) $
+              uis.audioQueue <#> \ { file, time } ->
                 { audio: resolveAudio file u
                 , delay: un Milliseconds (unInstant time)
                        - un Milliseconds (unInstant uis.timestamp)
