@@ -70,6 +70,9 @@ placeDoors :: forall e. Array { pos :: Vector Int | e } -> Arena -> Arena
 placeDoors doors terrain =
   foldl (\t {pos} -> set pos DoorClosed t) terrain doors
 
+placeExit :: Vector Int -> Arena -> Arena
+placeExit e terrain = set e Exit terrain
+
 demoTerrain :: String
 demoTerrain = """
 ########################################

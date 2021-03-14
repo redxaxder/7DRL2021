@@ -358,6 +358,7 @@ genNewMap = withRandom $ \(GameState gs) -> do
   let terrain = bareMap
               # carveRooms rooms
               # Terrain.placeDoors doors
+              # Terrain.placeExit exit
       roomInfo = rooms <#> \room ->
         { room, perimeter: Terrain.perimeter room, visible: false}
   pure $ GameState gs
