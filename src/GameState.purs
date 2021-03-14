@@ -430,7 +430,8 @@ rollLocations :: Int -> {x::Int,y::Int,width::Int,height::Int}
 rollLocations 0 _ = pure []
 rollLocations n room = do
   let candidates = Terrain.blockPositions room
-  for (Array.range 1 n) \_ -> R.unsafeElement "rollLocations" candidates
+  p1 <- for (Array.range 1 n) \_ -> R.unsafeElement "rollLocations" candidates
+  pure $ Array.fromFoldable (Set.fromFoldable p1)
 
 genItem :: Vector Int -> GameState -> Random Item
 genItem location (GameState gs) = do
