@@ -559,9 +559,12 @@ targetPadding :: Number
 targetPadding = (rightPaneTiles - 6.0) * tileSize
 
 targetBoardRect :: Rectangle
-targetBoardRect = targetBoardContainerRect
-  # cutDown targetPadding
-  # cutRight (targetPadding / 2.0)
+targetBoardRect =
+  { x: targetBoardContainerRect.x + 2.0
+  , y: targetBoardContainerRect.y + tileSize + 2.0
+  , width: 6.0*tileSize
+  , height: 6.0*tileSize
+  }
 
 targetDimensions :: { width :: Number, height :: Number }
 targetDimensions = { width: screen.width, height: screen.height }

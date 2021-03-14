@@ -377,7 +377,7 @@ genNewMap = withRandom $ \(GameState gs) -> do
              , minBlock: 3
              , maxBlock: 8
              }
-  { rooms, entrance,exit,doors } <- G.generateMapFull conf
+  { rooms, entrance,exitCandidates,doors } <- G.generateMapFull conf
   let terrain = bareMap
               # carveRooms rooms
               # Terrain.placeDoors doors
@@ -387,6 +387,11 @@ genNewMap = withRandom $ \(GameState gs) -> do
       candidatePlayerLocs =
         Array.cons gs.p (Direction.directions8 <#> \d -> move d gs.p)
         # Array.filter (\p -> LI.index terrain p == Just Floor)
+      distanceToPlayer v = let (V w) = v  - gs.p
+                            in 0 - (abs w.x) - abs w.y
+      exit = unsafeFromJust $ Array.head
+             $ Array.sortBy (comparing distanceToPlayer)
+             exitCandidates
   newP <- R.unsafeElement "spawnlocation" candidatePlayerLocs
   pure $ GameState gs
     { terrain = terrain

@@ -236,21 +236,21 @@ type Conf =
 type Result =
   { rooms :: Array Room
   , entrance :: Vector Int
-  , exit :: Vector Int
+  , exitCandidates :: Array (Vector Int)
   , doors :: Array Door
   }
 
 generateMapFull :: Conf -> Random Result
 generateMapFull c = do
-  let startingBlock = {x:1, y:1, width: c.width -2 , height: c.height -2 }
+  let startingBlock = {x:1, y:1, width: c.width - 2, height: c.height - 2 }
   rooms <- recursivelySubdivide c.minBlock c.maxBlock startingBlock
   let roomAdjacency = adjacencyMap rooms roomsAreAdjacent
   doors <- genDoors roomAdjacency
-  exit <- genExit rooms
+  exitCandidates <- sequence $ Array.replicate 3 (genExit rooms)
   pure $
     { rooms
     , entrance: V{x:1,y:2}
-    , exit: exit
+    , exitCandidates
     , doors
     }
 
