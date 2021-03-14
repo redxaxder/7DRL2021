@@ -90,6 +90,6 @@ stats :: EnemyTag -> EnemyStats
 stats Roomba = s  2   0  10  0  Point "murderous vacuum robot"      "roomba.png"
 stats Bot    = s  3   3   8  2  Point      "retired battlebot"  "Battlebot1.png"
 stats Drone  = s  1   0   5  3  Point         "kamikaze drone"       "drone.png"
-stats Fridge = s  2   8  10  4  Point    "mobile refrigerator"      "Fridge.png"
+stats Fridge = s  2   8  10  4  Point    "mobile fridge"      "Fridge.png"
 
 type EnemyId = Int

@@ -507,8 +507,10 @@ splitOnSize s size =
       start =  String.joinWith " " $ map Tuple.snd (Array.takeWhile (\x -> Tuple.fst x < size) splens)
       rest = map Tuple.snd (Array.dropWhile (\x -> Tuple.fst x < size) splens)
       trail = String.joinWith " " rest
-  in if Array.length rest > 0 then [start] <> splitOnSize trail size else [start]
-
+  in case Array.length rest > 0, String.length start > 0 of
+       true, true -> [start] <> splitOnSize trail size
+       _, true -> [start]
+       _, false -> rest
 
 {-
 dirtyCheck :: Array Rectangle -> Rectangle -> Boolean

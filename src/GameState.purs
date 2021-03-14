@@ -131,7 +131,7 @@ exampleEnemies =
     { location: V{x:5, y:5}
     , health: Board.fromBoard exampleRoombaBoard
     , clueCache: Map.empty
-    , tag: Roomba
+    , tag: Fridge
     }
   ]
 
