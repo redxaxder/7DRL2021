@@ -105,8 +105,8 @@ die (GameState gs) = (GameState gs
     { p = startingPos
     , playerHealth = freshPlayerHealth
     , playerDistanceMap = Map.empty
-    , enemies = Map.empty -- exampleEnemies
-    , items = Map.empty -- exampleItems
+    , enemies = Map.empty
+    , items = Map.empty
     , level = Dead
     , availableOrgans = exampleOrgans
     , events = []
@@ -384,6 +384,8 @@ genNewMap = withRandom $ \(GameState gs) -> do
   pure $ GameState gs
     { terrain = terrain
     , rooms = Map.fromFoldable (Array.zip rooms roomInfo)
+    , enemies = Map.empty
+    , items = Map.empty
     }
 
 genNewOrgans :: GameState -> GameState
