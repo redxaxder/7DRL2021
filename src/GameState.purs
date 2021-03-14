@@ -361,6 +361,10 @@ withRandom f gs@(GameState g) =
   let {result: (GameState nextG), nextGen} = R.runRandom (f gs) g.rng
    in GameState nextG{ rng = nextGen }
 
+--------------------------------------------------------------------------------
+-- Gen Stuff -------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
 genNewMap :: GameState -> GameState
 genNewMap = withRandom $ \(GameState gs) -> do
   let {width,height} = arena
@@ -396,6 +400,57 @@ recalculatePDMap (GameState gs) =
       newMap = Solver.distanceMap start expand
    in GameState gs { playerDistanceMap = newMap }
 
+populateRoom :: GameState -> Room -> Random GameState
+populateRoom g room = do
+  let weight 0 = 4
+      weight 1 = 4
+      weight _ = 2
+  numberOfEnemies <- R.unsafeWeightedElement "populateRoom" weight [0,1,2]
+  {head, tail} <- (unsafeFromJust <<< Array.uncons) <$>
+                     rollLocations (1 + numberOfEnemies) room
+  item <- genItem head g
+  enemies <- for tail \p -> genEnemy p g
+  pure $ g
+    # addItem item
+    # flip (foldr addEnemy) (Array.filter Enemy.isAlive enemies)
+
+rollLocations :: Int -> {x::Int,y::Int,width::Int,height::Int}
+    -> Random (Array BoardCoord)
+rollLocations 0 _ = pure []
+rollLocations n room = do
+  let candidates = Terrain.blockPositions room
+  for (Array.range 1 n) \_ -> R.unsafeElement "rollLocations" candidates
+
+genItem :: Vector Int -> GameState -> Random Item
+genItem location (GameState gs) = do
+  let d = levelDepth gs.level -- todo: incorporate this
+  pure $ Item {location, decay: 15, tag: HealthPickup 5}
+
+genEnemy :: Vector Int -> GameState -> Random Enemy
+genEnemy location (GameState gs)= do
+  let d = levelDepth gs.level
+      candidates = Enemy.allEnemies
+                 # Array.filter (\x -> (Enemy.stats x).minDepth <= d)
+  tag <- R.unsafeElement "genEnemy" candidates
+  health <- genHealth (Enemy.stats tag)
+  pure $ Enemy {location, health, tag, clueCache: Map.empty }
+       # recalculateClues
+
+genHealth :: EnemyStats -> Random Health
+genHealth {armor, hp, injuries} = do
+  let bounds = {x:0,y:0,width:6,height:6}
+      armorOrgan = Organ (OrganSize 1 1) Armor
+      healthOrgan = hpOrgan1
+  as <- rollLocations armor bounds
+  hs <- rollLocations hp bounds
+  is <- rollLocations injuries bounds
+  pure $ freshHealth
+       # addOrgans as armorOrgan
+       # addOrgans hs healthOrgan
+       # injureMulti is
+
+--------------------------------------------------------------------------------
+
 revealRooms :: GameState -> GameState
 revealRooms = withRandom \g@(GameState gs) ->
   -- random not used yet, but will be used when spawning things in
@@ -423,60 +478,12 @@ markVisible room (GameState gs) =
                            gs.rooms
                }
 
-populateRoom :: GameState -> Room -> Random GameState
-populateRoom g room = do
-  let weight 0 = 4
-      weight 1 = 4
-      weight _ = 2
-  numberOfEnemies <- R.unsafeWeightedElement "populateRoom" weight [0,1,2]
-  {head, tail} <- (unsafeFromJust <<< Array.uncons) <$>
-                     rollLocations (1 + numberOfEnemies) room
-  item <- genItem head g
-  enemies <- for tail \p -> genEnemy p g
-  pure $ g
-    # addItem item
-    # flip (foldr addEnemy) (Array.filter Enemy.isAlive enemies)
-
-rollLocations :: Int -> {x::Int,y::Int,width::Int,height::Int}
-    -> Random (Array BoardCoord)
-rollLocations 0 _ = pure []
-rollLocations n room = do
-  let candidates = Terrain.blockPositions room
-  for (Array.range 1 n) \_ -> R.unsafeElement "rollLocations" candidates
-
-genItem :: Vector Int -> GameState -> Random Item
-genItem location (GameState gs) = do
-  let d = levelDepth gs.level -- todo: incorporate this
-  pure $ Item {location, decay: 15, tag: HealthPickup 5}
 
 addItem :: Item -> GameState -> GameState
 addItem i (GameState gs) = GameState gs
   { items = Map.insert gs.nextId i gs.items
   , nextId = gs.nextId + 1
   }
-
-genEnemy :: Vector Int -> GameState -> Random Enemy
-genEnemy location (GameState gs)= do
-  let d = levelDepth gs.level
-      candidates = Enemy.allEnemies
-                 # Array.filter (\x -> (Enemy.stats x).minDepth <= d)
-  tag <- R.unsafeElement "genEnemy" candidates
-  health <- genHealth (Enemy.stats tag)
-  pure $ Enemy {location, health, tag, clueCache: Map.empty }
-       # recalculateClues
-
-genHealth :: EnemyStats -> Random Health
-genHealth {armor, hp, injuries} = do
-  let bounds = {x:0,y:0,width:6,height:6}
-      armorOrgan = Organ (OrganSize 1 1) Armor
-      healthOrgan = hpOrgan1
-  as <- rollLocations armor bounds
-  hs <- rollLocations hp bounds
-  is <- rollLocations injuries bounds
-  pure $ freshHealth
-       # addOrgans as armorOrgan
-       # addOrgans hs healthOrgan
-       # injureMulti is
 
 
 addEnemy :: Enemy -> GameState -> GameState
