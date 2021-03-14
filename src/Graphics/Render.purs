@@ -209,6 +209,7 @@ draw t uis@(UIState {timestamp, gsTimestamp}) gs@(GameState g) rs@(RendererState
 drawPlayerBoard :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
 drawPlayerBoard t uis (GameState gs) rs = do
   let playerBoard = (un Health gs.playerHealth).board
+      playerHp = (un Health gs.playerHealth).hpCount
       playerOrgans = getOrgans playerBoard
       anchor = let {x,y} = playerBoardRect in V{x,y}
   clear rs leftPaneRect
@@ -218,6 +219,14 @@ drawPlayerBoard t uis (GameState gs) rs = do
     drawOrgan true rs organ (fromGrid bc + anchor)
   for_ playerOrgans.injured \(Tuple organ bc) ->
     drawOrgan false rs organ (fromGrid bc + anchor)
+  if playerHp <= 0
+  then drawDeathMessage rs
+  else pure unit
+
+drawDeathMessage :: RendererState -> Effect Unit
+drawDeathMessage rs = do
+    drawText rs tileSize "You have" ( V{x:0.0, y:tileSize * 8.0} )
+    drawText rs tileSize "died" ( V{x:1.5 * tileSize, y:tileSize * 9.0})
 
 drawStats :: RendererState -> GameState -> Effect Unit
 drawStats rs gs = do
@@ -270,7 +279,6 @@ drawCenterPane
              say s p = drawText rs size s p
          say "You have escaped from the dump moon. Victory!" (V{x,y})
          cacheScreen rs
-
        Dead -> do
          clear rs centerPaneRect
          let x = centerPaneRect.x
