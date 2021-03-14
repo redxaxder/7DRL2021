@@ -59,14 +59,13 @@ import Framework.Render.Core (Rectangle, Image (..))
 
 import Data.Enemy
   ( Enemy(..)
-  , EnemyTag (..)
   , EnemyId
   )
 
+import Data.Item as Item
 import Data.Item
   ( Item(..)
   , ItemId
-  , ItemTag(..)
   )
 
 {-
@@ -289,7 +288,7 @@ drawCenterPaneAnimations
   drawImageTemp r "player.png" (animPlayerRect t uis gs)
   forWithIndex_ g.items \iid item@(Item{location}) ->
     let rect = animItemRect t iid item uis gs
-        image = itemImage item
+        image = Item.image item
         (Item i) = item
         itemLifetime = i.decay
      in when (blink t itemLifetime) $ drawImageTemp r image rect
@@ -332,9 +331,6 @@ getHighlightColor t = Color $ "#ffffff" <> opacity
   opacity = sin (ms / 100.0) * 30.0 + 120.0
     # Int.floor
     # Int.toStringAs Int.hexadecimal
-
-itemImage :: Item -> String
-itemImage (Item {tag: HealthPickup _}) = "heal.png"
 
 rectPos :: Rectangle -> Vector Number
 rectPos {x,y} = V {x,y}

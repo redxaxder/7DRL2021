@@ -2,6 +2,9 @@ module Data.Enemy where
 
 import Extra.Prelude
 import Data.Map as Map
+import Data.Item
+  ( WeaponShape (..)
+  )
 import Data.Board
   ( Health(..)
   , BoardCoord
@@ -59,18 +62,16 @@ type EnemyStats =
   , hp :: Int
   , injuries :: Int
   , minDepth :: Int
-  , attack :: Attack
+  , weapon :: WeaponShape
   , image :: String
   }
 
-data Attack = Box Int Int
-
-s :: Int -> Int -> Int -> Int -> Attack -> String -> String -> EnemyStats
-s hp armor injuries minDepth attack name image =
-  {name, hp, armor, injuries, minDepth, attack, image}
+s :: Int -> Int -> Int -> Int -> WeaponShape -> String -> String -> EnemyStats
+s hp armor injuries minDepth weapon name image =
+  {name, hp, armor, injuries, minDepth, weapon, image}
 
 stats :: EnemyTag -> EnemyStats
-stats Roomba = s  2  0  10  0  (Box 1 1) "murderous vacuum robot"  "roomba.png"
+stats Roomba = s  2  0  10  0  Point     "murderous vacuum robot"  "roomba.png"
 stats Drone =  s  1  0  15  2  (Box 6 6)         "kamikaze drone"   "drone.png"
 
 type EnemyId = Int
