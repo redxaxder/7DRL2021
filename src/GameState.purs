@@ -261,9 +261,12 @@ handleAction (GameState gs) a@(Attack bc eid) =
   let menemy = Map.lookup eid gs.enemies
    in case menemy of
     Nothing -> Left FailedAttack
-    Just enemy -> Right $ handleEnemyInjury (GameState gs) enemy eid bc
-        # reportEvent (PlayerAttacked eid)
-        # enemyTurn
+    Just enemy@(Enemy {health}) ->
+      if Board.validTarget bc health
+        then Right $ handleEnemyInjury (GameState gs) enemy eid bc
+              # reportEvent (PlayerAttacked eid)
+              # enemyTurn
+        else Left FailedAttack
 handleAction g a@(InstallOrgan organ bc) =
   if canInstallOrgan bc organ g
     then Right $ g

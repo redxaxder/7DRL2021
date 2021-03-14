@@ -262,6 +262,12 @@ isAlive (Health h) = h.hpCount > 0
 injure :: BoardCoord -> Health -> Health
 injure v (Health h) = fromBoard $ injureBoard v h.board
 
+isInjured :: BoardCoord -> Health -> Boolean
+isInjured v (Health {board:Board {injuries}}) = Set.member v injuries
+
+validTarget :: BoardCoord -> Health -> Boolean
+validTarget v h = isValidBoardCoord v && not (isInjured v h)
+
 injureMulti :: Array BoardCoord -> Health -> Health
 injureMulti vs h = foldr injure h vs
 
