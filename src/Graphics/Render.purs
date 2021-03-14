@@ -158,7 +158,9 @@ queueRestore (RendererState {toRestore}) rect =
 drawImageTemp :: RendererState -> String -> Rectangle -> Effect Unit
 drawImageTemp rs img rect = do
   drawImage rs img rect
-  queueRestore rs rect
+  queueRestore rs {x: rect.x-1.0, y: rect.y -1.0
+                  , width: rect.width+2.0, height: rect.height+2.0
+                  }
 
 fillRectTemp :: RendererState -> Rectangle -> Color -> Effect Unit
 fillRectTemp rs rect color = do

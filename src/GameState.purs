@@ -97,6 +97,7 @@ initState = do
     , nextId: 100
     }
     # genNewMap
+    # genSurgeryRoomOrgans
     # revealRooms
     # recalculatePDMap
 
@@ -116,6 +117,7 @@ die (GameState gs) = (GameState gs
     , nextId = gs.nextId
     })
     # genNewMap
+    # genSurgeryRoomOrgans
     # revealRooms
     # recalculatePDMap
 
@@ -250,6 +252,7 @@ handleAction g@(GameState gs) a@(Move dir) =
         # goToNextLevel
         # reportEvent (PlayerMoved dir)
         # genNewMap
+        # genSurgeryRoomOrgans
         # revealRooms
         # genNewOrgans
         # recalculatePDMap
@@ -452,7 +455,32 @@ genHealth {armor, hp, injuries} = do
        # addOrgans hs healthOrgan
        # injureMulti is
 
--- surgeryRoomOrgans 
+
+type OrganGen = { organ :: Organ, weight :: Int }
+
+o :: Organ -> Int -> OrganGen
+o organ weight = {organ, weight}
+
+generatableOrgans :: Array OrganGen
+generatableOrgans =
+  [ o playerHpOrgan 5
+  , o eyeRed 2
+  , o eyeBlue 2
+  , o hpOrgan1 1
+  ]
+
+genSurgeryRoomOrgans  :: GameState -> GameState
+genSurgeryRoomOrgans = withRandom \g@(GameState gs) -> do
+  let d = spy "d" $ levelDepth gs.level
+  numOrgans <- R.intRange 2 (2 + d)
+  locations <- rollLocations numOrgans {x:0, y:0, width:8, height:8}
+  organs <- for (locations) \pos ->
+    _.organ <$> R.unsafeWeightedElement "genSurgery" _.weight generatableOrgans
+  let available = foldr
+         (\(Tuple pos organ) bag -> Board.insertOrgan pos organ bag)
+         Board.emptyBag
+         (Array.zip locations organs)
+  pure (GameState gs{ availableOrgans = available })
 
 --------------------------------------------------------------------------------
 

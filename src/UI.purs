@@ -734,6 +734,8 @@ imagePaths =
   , "Armor5.png"
   , "Armor5Hurt.png"
   , "weapon.png"
+  , "Fridge.png"
+  , "Battlebot1.png"
   ]
 
 audioPaths :: Array String
