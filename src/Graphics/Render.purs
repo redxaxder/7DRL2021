@@ -361,8 +361,8 @@ animItemRect t iid (Item {location}) (UIState {itemAnim}) (GameState gs) =
    in { x, y, width: tileSize, height: tileSize }
 
 drawRightPane :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
-drawRightPane t (UIState{rightPaneTarget}) (GameState gs) vars = do
-  clear vars rightPaneRect
+drawRightPane t (UIState{rightPaneTarget}) (GameState gs) rs = do
+  clear rs rightPaneRect
   case rightPaneTarget of
        RPEnemy eid -> case Map.lookup eid gs.enemies of
               Nothing -> pure unit
@@ -370,17 +370,26 @@ drawRightPane t (UIState{rightPaneTarget}) (GameState gs) vars = do
                 let name = Enemy.name n
                     Health h = e.health
                     nameLoc = let {x,y} = rightPaneRect in V{x,y}
-                wrapText vars name nameLoc rightPaneRect.width
-                drawImage vars "heart.png"
+                wrapText rs name nameLoc rightPaneRect.width
+                drawImage rs "heart.png"
                   { x: targetBoardContainerRect.x --TODO: move these outside
                   , y: targetBoardContainerRect.y -- for column clues
                   , width: tileSize, height: tileSize }
-                drawText vars tileSize (show h.hpCount) -- TODO: move for column clues
+                drawText rs tileSize (show h.hpCount) -- TODO: move for column clues
                   (V { x: targetBoardContainerRect.x + tileSize
                   , y: targetBoardContainerRect.y
                   })
-                drawBoardBase vars h.board targetBoardRect
-                drawEnemyBoardDetails vars n
+
+                drawImage rs "Armor5.png"
+                  { x: targetBoardContainerRect.x + tileSize * 3.0
+                  , y: targetBoardContainerRect.y
+                  , width: tileSize, height: tileSize }
+                drawText rs tileSize (show h.armorCount)
+                  (V { x: targetBoardContainerRect.x + tileSize * 4.0
+                  , y: targetBoardContainerRect.y
+                  })
+                drawBoardBase rs h.board targetBoardRect
+                drawEnemyBoardDetails rs n
        _ -> pure unit
 
 clear :: RendererState -> Rectangle -> Effect Unit

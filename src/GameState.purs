@@ -28,6 +28,7 @@ import Data.Terrain as Terrain
 import Solver as Solver
 import Data.Ord (abs)
 import Mapgen as G
+import Data.Board as Board
 import Data.Board
   ( BoardCoord
   , Board(..)
@@ -126,7 +127,7 @@ exampleEnemies =
   Map.fromFoldableWithIndex
   [ injureEnemyMulti exampleInjuries $ Enemy
     { location: V{x:5, y:5}
-    , health: mkHealth exampleRoombaBoard
+    , health: Board.fromBoard exampleRoombaBoard
     , clueCache: Map.empty
     , tag: Roomba
     }
@@ -142,12 +143,6 @@ exampleItems =
     , tag: HealthPickup medium
     }
   ]
-
-mkHealth :: Board -> Health
-mkHealth board = Health
-  { hpCount: hpCount board
-  , board
-  }
 
 exampleInjuries :: Array BoardCoord
 exampleInjuries = [ vec 1 1, vec 2 3, vec 4 4 ]
@@ -176,17 +171,15 @@ freshTerrainFromString s =
     s' = flatten s
 
 freshPlayerHealth :: Health
-freshPlayerHealth = Health
-  { hpCount: hpCount freshPlayerBoard
-  , board: freshPlayerBoard
-  }
+freshPlayerHealth = Board.fromBoard freshPlayerBoard
 
 freshPlayerBoard :: Board
 freshPlayerBoard = Board
   { organs: emptyBag
-      # insertOrgan (vec 1 1) playerHpOrgan
-      -- # insertOrgan (vec 3 1) playerHpOrgan
-      # insertOrgan (vec 2 3) playerHpOrgan
+      # insertOrgan (vec 1 0) playerHpOrgan
+      # insertOrgan (vec 4 1) playerHpOrgan
+      # insertOrgan (vec 0 3) playerHpOrgan
+      # insertOrgan (vec 3 4) playerHpOrgan
   , injuries: Set.empty
   }
 
@@ -264,12 +257,11 @@ handleAction (GameState gs) _ = Right $ GameState gs
 
 handleEnemyInjury :: GameState -> Enemy -> EnemyId -> BoardCoord -> GameState
 handleEnemyInjury (GameState gs) (Enemy e) eid bc =
-  let
-    (Enemy newE) = injureEnemy bc (Enemy e)
-    (Health h) = newE.health
-  in if h.hpCount <= 0
-     then GameState gs {enemies = Map.delete eid gs.enemies} # reportEvent (EnemyDied eid)
-     else (GameState gs {enemies = Map.insert eid (Enemy newE) gs.enemies})
+  let newE = injureEnemy bc (Enemy e)
+  in if Enemy.isAlive newE
+     then (GameState gs {enemies = Map.insert eid newE gs.enemies})
+     else GameState gs {enemies = Map.delete eid gs.enemies}
+          # reportEvent (EnemyDied eid)
 
 isPassable :: Vector Int -> GameState -> Boolean
 isPassable t (GameState gs) =
@@ -426,10 +418,11 @@ populateRoom g room = do
   enemies <- for tail \p -> genEnemy p g
   pure $ g
     # addItem item
-    # flip (foldr addEnemy) enemies
+    # flip (foldr addEnemy) (Array.filter Enemy.isAlive enemies)
 
 rollLocations :: Int -> {x::Int,y::Int,width::Int,height::Int}
     -> Random (Array BoardCoord)
+rollLocations 0 _ = pure []
 rollLocations n room = do
   let candidates = Terrain.blockPositions room
   for (Array.range 1 n) \_ -> R.unsafeElement candidates
@@ -452,20 +445,21 @@ genEnemy location (GameState gs)= do
                  # Array.filter (\x -> (Enemy.stats x).minDepth <= d)
   tag <- R.unsafeElement candidates
   health <- genHealth (Enemy.stats tag)
+  let _ = spy "hmm" {tag, health}
   pure $ Enemy {location, health, tag, clueCache: Map.empty }
        # recalculateClues
 
 genHealth :: EnemyStats -> Random Health
 genHealth {armor, hp, injuries} = do
   let bounds = {x:0,y:0,width:6,height:6}
-      --armorOrgan = todo
+      armorOrgan = Organ (OrganSize 1 1) Armor
       healthOrgan = hpOrgan1
   as <- rollLocations armor bounds
   hs <- rollLocations hp bounds
   is <- rollLocations injuries bounds
   pure $ freshHealth
-       -- # addOrgan armor -- todo
-       # addOrgans as healthOrgan
+       -- # addOrgans as armorOrgan
+       # addOrgans hs healthOrgan
        # injureMulti is
 
 
@@ -484,7 +478,7 @@ isSurgeryLevel _ = false
 nextLevel :: Level -> Level
 nextLevel (Regular i) = Surgery i
 nextLevel (Surgery i) = Regular (i+1)
-nextLevel NewGame = Regular 1
+nextLevel NewGame = Surgery 6
 nextLevel Dead = NewGame
 
 levelDepth :: Level -> Int
@@ -607,7 +601,7 @@ installOrgan pos organ (GameState g) =
       board = un Board health.board
       newBag = insertOrgan pos organ board.organs
       newBoard = board {organs = newBag}
-   in GameState g{playerHealth = mkHealth (Board newBoard)}
+   in GameState g{playerHealth = Board.fromBoard (Board newBoard)}
 
 removeAvailableOrgan :: InternalOrgan -> GameState -> GameState
 removeAvailableOrgan organ (GameState gs) = GameState gs
@@ -619,9 +613,9 @@ removeOrgan pos (GameState g) =
       board = un Board health.board
       spacesToInjure = organExtent pos board.organs
       newBag = removeOrganAt pos board.organs
-      newBoard = board {organs = newBag}
-      newHealth = foldr injure (mkHealth (Board newBoard)) spacesToInjure
-   in GameState g{playerHealth = mkHealth (Board newBoard)}
+      newBoard = Board board {organs = newBag}
+      newHealth = foldr injure (Board.fromBoard newBoard) spacesToInjure
+   in GameState g{ playerHealth = newHealth }
 
 healOne :: GameState -> R.Random GameState
 healOne gs@(GameState g) =

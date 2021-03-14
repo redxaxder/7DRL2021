@@ -5,6 +5,7 @@ import Data.Map as Map
 import Data.Item
   ( WeaponShape (..)
   )
+import Data.Board as Board
 import Data.Board
   ( Health(..)
   , BoardCoord
@@ -40,15 +41,29 @@ newtype Enemy = Enemy
   , tag :: EnemyTag
   }
 
+isAlive :: Enemy -> Boolean
+isAlive (Enemy e) = Board.isAlive e.health
+
 data EnemyTag =
     Roomba
   | Drone
+  | Bot
+  | Fridge
 
 allEnemies :: Array EnemyTag
 allEnemies =
   [ Roomba
   , Drone
+  , Bot
+  , Fridge
   ]
+
+{-
+murderous vacuum robot  | 2    | 0     | 1x1    | 10     |
+retired battlebot       | 5    | 3     | 1x3    | 5      |
+kamikaze drone          | 1    | 0     | 6x6    | 8      | self destructs
+mobile refrigerator     | 2    | 8     | 2x2    | 10     |
+                        -}
 
 name :: Enemy -> String
 name (Enemy {tag}) = (stats tag).name
@@ -71,7 +86,10 @@ s hp armor injuries minDepth weapon name image =
   {name, hp, armor, injuries, minDepth, weapon, image}
 
 stats :: EnemyTag -> EnemyStats
-stats Roomba = s  2  0  10  0  Point     "murderous vacuum robot"  "roomba.png"
-stats Drone =  s  1  0  15  2  (Box 6 6)         "kamikaze drone"   "drone.png"
+--               hp arm inj lvl weap                     name              image
+stats Roomba = s  2   0  10  0  Point "murderous vacuum robot"      "roomba.png"
+stats Bot    = s  3   3   8  1  Point      "retired battlebot" "placeholder.png"
+stats Drone  = s  1   0   5  2  Point         "kamikaze drone"       "drone.png"
+stats Fridge = s  2   8  10  3  Point    "mobile refrigerator" "placeholder.png"
 
 type EnemyId = Int

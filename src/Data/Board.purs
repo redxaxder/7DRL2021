@@ -128,18 +128,49 @@ isHpOrgan (Organ _ Hp) = true
 isHpOrgan (Organ _ PlayerHeartLarge) = true
 isHpOrgan (Organ _ _) = false
 
+isArmorOrgan :: Organ -> Boolean
+isArmorOrgan (Organ _ Armor) = true
+isArmorOrgan (Organ _ _) = false
+
+isRedEye :: Organ -> Boolean
+isRedEye (Organ _ HumanEye) = true
+isRedEye (Organ _ EyeRed) = true
+isRedEye (Organ _ _) = false
+
+isBlueEye :: Organ -> Boolean
+isBlueEye (Organ _ EyeBlue) = true
+isBlueEye (Organ _ _) = false
+
 getClue :: BoardCoord -> Board -> Clue
 getClue p b =
   let neighbors = Array.filter isValidBoardCoord
         (move <$> directions8 <*> pure p)
       hpOrgans = Array.length $ Array.filter isHpOrgan
         (Array.mapMaybe (getOrganAtPosition b) neighbors)
-   in if hpOrgans > 0
-      then HpClue hpOrgans
-      else EmptyClue
+      armorOrgans = Array.length $ Array.filter isArmorOrgan
+        (Array.mapMaybe (getOrganAtPosition b) neighbors)
+   in case hpOrgans > 0, armorOrgans > 0 of
+        true, false -> HpClue hpOrgans
+        false, true -> ArmorClue armorOrgans
+        true, true -> MixedClue (armorOrgans + hpOrgans)
+        false, false -> EmptyClue
+
+
+
+countIntact :: (Organ -> Boolean) -> Board -> Int
+countIntact f b = Array.length $ Array.filter f (intactOrgans b)
 
 hpCount :: Board -> Int
-hpCount board = Array.length $ Array.filter isHpOrgan (intactOrgans board)
+hpCount = countIntact isHpOrgan
+
+armorCount :: Board -> Int
+armorCount = countIntact isArmorOrgan
+
+hasRedEye :: Board -> Boolean
+hasRedEye board = countIntact isRedEye board > 0
+
+hasBlueEye :: Board -> Boolean
+hasBlueEye board = countIntact isBlueEye board > 0
 
 intactOrgans :: Board -> Array Organ
 intactOrgans board = Tuple.fst <$> (getOrgans board).intact
@@ -189,23 +220,33 @@ randomInjuredSpace (Board b) = b.injuries
 
 newtype Health = Health
   { hpCount :: Int
+  , armorCount :: Int
+  , canSee :: Boolean
+  , hasSpecialEyes :: Boolean
   , board :: Board
   }
 
 freshHealth :: Health
-freshHealth =
-  Health
-  { hpCount: 0
-  , board: Board
-    { injuries: mempty
-    , organs: emptyBag
-    }
+freshHealth = fromBoard $ Board
+  { injuries: mempty
+  , organs: emptyBag
   }
 
+fromBoard :: Board -> Health
+fromBoard board = Health $
+  { board
+  , hpCount: hpCount board
+  , armorCount: armorCount board
+  , canSee: hasRedEye board || hasBlueEye board
+  , hasSpecialEyes: hasBlueEye board
+  }
+
+
+isAlive :: Health -> Boolean
+isAlive (Health h) = h.hpCount > 0
+
 injure :: BoardCoord -> Health -> Health
-injure v (Health h) =
-  let board = injureBoard v h.board
-   in Health { hpCount: hpCount board, board }
+injure v (Health h) = fromBoard $ injureBoard v h.board
 
 injureMulti :: Array BoardCoord -> Health -> Health
 injureMulti vs h = foldr injure h vs
@@ -214,7 +255,7 @@ addOrgan :: BoardCoord -> Organ -> Health -> Health
 addOrgan pos organ (Health {board: Board b}) =
   let newBag = insertOrgan pos organ b.organs
       b' = Board b{organs = newBag}
-   in Health {board:b', hpCount: hpCount b'}
+   in fromBoard b'
 
 addOrgans :: Array BoardCoord -> Organ -> Health -> Health
 addOrgans poss organ health = foldr (\pos h -> addOrgan pos organ h) health poss
