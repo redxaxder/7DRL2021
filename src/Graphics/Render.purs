@@ -10,6 +10,7 @@ import Data.DateTime.Instant (unInstant)
 import Data.Time.Duration (Milliseconds (..))
 import Data.Int as Int
 import Data.String as String
+import Data.RevMap as RevMap
 import Effect.Exception (error)
 import Effect.Ref as Ref
 import Math (round, sin)
@@ -46,6 +47,7 @@ import GameState
   ( GameState (..)
   , Level (..)
   , isSurgeryLevel
+  , freshPlayerOrgans
   )
 import UI
   ( UIState (..)
@@ -258,7 +260,7 @@ drawCenterPane :: Instant -> UIState -> GameState -> RendererState -> Effect Uni
 drawCenterPane
   t
   uis@(UIState {gsTimestamp})
-  gs@(GameState {availableOrgans, level, installedOrgans})
+  gs@(GameState {availableOrgans, level, installedOrgans, playerHealth})
   rs@(RendererState r) = do
   prevGS <- Ref.read r.gameStateId
   let gsDirty = maybe true ((>) $ gsTimestamp) (prevGS)
@@ -277,13 +279,29 @@ drawCenterPane
        Victory -> do
          clear rs centerPaneRect
          let x = centerPaneRect.x
-             y = centerPaneRect.y + centerPaneRect.height - tileSize * 4.0
+             y = centerPaneRect.y + centerPaneRect.height - tileSize * 8.0
              size = tileSize / 2.0
              say s p = drawText rs size s p
+             (Board.Health h) = playerHealth
+             (Board board) = h.board
+             organs = RevMap.values board.organs
+             freshOrgans = RevMap.values freshPlayerOrgans
+             originalOrgansRemaining = Array.length
+               $ Array.intersect organs freshOrgans
          say "You have escaped from the dump moon. Victory!" (V{x,y})
          say "But at what cost?" (V{x, y: y + tileSize * 2.0})
-         say (String.replace (String.Pattern "{n}") (String.Replacement $ show installedOrgans) "You implanted {n} strange parts." ) (V{x, y: y + tileSize * 3.0})
-         say "You only have {n} original internal organs..." (V{x, y: y + tileSize * 3.0})
+         say (String.replace (String.Pattern "{n}")
+               (String.Replacement $ show installedOrgans)
+               "You implanted {n} strange parts."
+             )
+             (V{x, y: y + tileSize * 3.0})
+             {-
+         say (String.replace (String.Pattern "{n}")
+               (String.Replacement $ show originalOrgansRemaining)
+               "You only have {n} original organs..." 
+             )
+             (V{x, y: y + tileSize * 4.0})
+             -}
          cacheScreen rs
        Dead -> do
          clear rs centerPaneRect

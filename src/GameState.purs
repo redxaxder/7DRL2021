@@ -179,14 +179,17 @@ freshTerrainFromString s =
 freshPlayerHealth :: Health
 freshPlayerHealth = Board.fromBoard freshPlayerBoard
 
-freshPlayerBoard :: Board
-freshPlayerBoard = Board
-  { organs: emptyBag
+freshPlayerOrgans :: OrganBag
+freshPlayerOrgans =  emptyBag
       # insertOrgan (vec 1 1) humanEye
       # insertOrgan (vec 0 3) playerHpOrgan
       # insertOrgan (vec 5 4) humanEye
       # insertOrgan (vec 3 0) playerHpOrgan
       # insertOrgan (vec 3 3) playerHpOrgan
+
+freshPlayerBoard :: Board
+freshPlayerBoard = Board
+  { organs: freshPlayerOrgans
   , injuries: Set.empty
   }
 
