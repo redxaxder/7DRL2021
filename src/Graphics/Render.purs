@@ -292,11 +292,13 @@ drawCenterPane
                "You implanted {n} strange parts."
              )
              (V{x, y: y + tileSize * 3.0})
+             {-
          say (String.replace (String.Pattern "{n}")
                (String.Replacement $ show originalOrgansRemaining)
                "You only have {n} original organs..." 
              )
              (V{x, y: y + tileSize * 4.0})
+             -}
          cacheScreen rs
        Dead -> do
          clear rs centerPaneRect
