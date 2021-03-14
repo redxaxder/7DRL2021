@@ -95,6 +95,8 @@ initState = do
     , terrain: bareMap
     , rooms: Map.empty
     , nextId: 100
+    , installedOrgans: 0
+    , removedOrgans: 0
     }
     # genNewMap
     # genSurgeryRoomOrgans
@@ -115,6 +117,8 @@ die (GameState gs) = (GameState gs
     , terrain = bareMap
     , rooms = Map.empty
     , nextId = gs.nextId
+    , installedOrgans = 0
+    , removedOrgans = 0
     })
     # genNewMap
     # genSurgeryRoomOrgans
@@ -347,6 +351,8 @@ newtype GameState = GameState
   , events :: Array Event
   , rng :: R.Gen
   , nextId :: Int
+  , installedOrgans :: Int
+  , removedOrgans :: Int
   }
 
 type RoomInfo =
@@ -690,7 +696,7 @@ installOrgan pos organ (GameState g) =
       board = un Board health.board
       newBag = insertOrgan pos organ board.organs
       newBoard = board {organs = newBag}
-   in GameState g{playerHealth = Board.fromBoard (Board newBoard)}
+   in GameState g{playerHealth = Board.fromBoard (Board newBoard), installedOrgans = g.installedOrgans + 1}
 
 removeAvailableOrgan :: InternalOrgan -> GameState -> GameState
 removeAvailableOrgan organ (GameState gs) = GameState gs

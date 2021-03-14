@@ -258,7 +258,7 @@ drawCenterPane :: Instant -> UIState -> GameState -> RendererState -> Effect Uni
 drawCenterPane
   t
   uis@(UIState {gsTimestamp})
-  gs@(GameState {availableOrgans, level})
+  gs@(GameState {availableOrgans, level, installedOrgans})
   rs@(RendererState r) = do
   prevGS <- Ref.read r.gameStateId
   let gsDirty = maybe true ((>) $ gsTimestamp) (prevGS)
@@ -278,6 +278,9 @@ drawCenterPane
              size = tileSize / 2.0
              say s p = drawText rs size s p
          say "You have escaped from the dump moon. Victory!" (V{x,y})
+         say "But at what cost?" (V{x, y: y + tileSize * 2.0})
+         say (String.replace (String.Pattern "{n}") (String.Replacement $ show installedOrgans) "You implanted {n} strange parts." ) (V{x, y: y + tileSize * 3.0})
+         say "You only have {n} original internal organs..." (V{x, y: y + tileSize * 3.0})
          cacheScreen rs
        Dead -> do
          clear rs centerPaneRect
