@@ -9,7 +9,6 @@ import Data.RevMap as RevMap
 import Data.Set as Set
 import Random as R
 import Framework.Direction (move, directions8)
-import Data.Item (Item(..))
 
 data OrganSize = OrganSize Int Int
 data OrganType =

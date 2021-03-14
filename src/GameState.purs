@@ -70,6 +70,8 @@ import Data.Item
   ( Item(..)
   , ItemId
   , ItemTag (..)
+  , Weapon
+  , pistol
   , medium
   , itemOnSpace
   )
@@ -81,6 +83,8 @@ initState = do
     { p: startingPos
     , playerHealth: freshPlayerHealth
     , playerDistanceMap: Map.empty
+    , playerWeapons: Map.singleton 0 pistol
+    , playerCurrentWeapon: 0
     , enemies: Map.empty -- exampleEnemies
     , items: Map.empty -- exampleItems
     , level: NewGame
@@ -237,6 +241,7 @@ handleAction g@(GameState gs) a@(Move dir) =
         # goToNextLevel
         # reportEvent (PlayerMoved dir)
         # genNewMap
+        # genNewOrgans
         # recalculatePDMap
 
 handleAction (GameState gs) a@(Attack bc eid) =
@@ -316,6 +321,8 @@ newtype GameState = GameState
   { p :: Vector Int
   , playerHealth :: Health
   , playerDistanceMap :: Map (Vector Int) Int
+  , playerWeapons :: Map Int Weapon
+  , playerCurrentWeapon :: Int
   , enemies :: Map EnemyId Enemy
   , items :: Map ItemId Item
   , terrain :: LinearIndex Terrain
@@ -365,6 +372,9 @@ genNewMap = withRandom $ \(GameState gs) -> do
     { terrain = terrain
     , rooms = Map.fromFoldable (Array.zip rooms roomInfo)
     }
+
+genNewOrgans :: GameState -> GameState
+genNewOrgans gs = gs -- TODO
 
 recalculatePDMap :: GameState -> GameState
 recalculatePDMap (GameState gs) =
@@ -530,6 +540,10 @@ data FailedAction =
   | FailedAttack
   | FailedInstall
 
+--------------------------------------------------------------------------------
+--- Enemies --------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
 enemyTurn :: GameState -> GameState
 enemyTurn g@(GameState gs) = foldrWithIndex enemyAction g gs.enemies
 
@@ -573,6 +587,10 @@ enemyAttack g eid = withRandom go g
        # if newHealth.hpCount <= 0
          then reportEvent PlayerDied
          else reportEvent (EnemyAttacked eid attack)
+
+--------------------------------------------------------------------------------
+--- Organs ---------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 canInstallOrgan :: Vector Int -> InternalOrgan -> GameState -> Boolean
 canInstallOrgan pos organ (GameState g) =
@@ -636,3 +654,22 @@ healMany (Item i) (GameState gs) =
          pure newGs
        _ -> pure $ GameState gs
      else pure $ GameState gs
+
+--------------------------------------------------------------------------------
+-- Weapon Management -----------------------------------------------------------
+--------------------------------------------------------------------------------
+
+getFreeWeaponSlot :: Map Int Weapon -> Maybe Int
+getFreeWeaponSlot m = Array.find (\x -> not $ Map.member x m) [0,1,2]
+
+placeWeapon :: Vector Int -> Weapon -> GameState -> GameState
+placeWeapon p w = todo
+
+pickUpWeapon :: ItemId -> GameState -> GameState
+pickUpWeapon iid (GameState gs) = todo
+
+selectWeapon :: Int -> GameState -> GameState
+selectWeapon i gs = todo
+
+
+--------------------------------------------------------------------------------
