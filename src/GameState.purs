@@ -485,22 +485,24 @@ addEnemy e (GameState gs) = GameState gs
   , nextId = gs.nextId + 1
   }
 
-data Level = Regular Int | Surgery Int | NewGame | Dead
+data Level = Regular Int | Surgery Int | NewGame | Dead | Victory
 
 isSurgeryLevel :: GameState -> Boolean
 isSurgeryLevel (GameState {level: Surgery _}) = true
 isSurgeryLevel _ = false
 
 nextLevel :: Level -> Level
-nextLevel (Regular i) = Surgery i
+nextLevel (Regular i) = if (spy "level i" i) < 5 then Surgery i else Victory
 nextLevel (Surgery i) = Regular (i+1)
-nextLevel NewGame = Surgery 6
+nextLevel NewGame = Regular 1
 nextLevel Dead = NewGame
+nextLevel Victory = Victory
 
 levelDepth :: Level -> Int
 levelDepth (Regular i) = i
 levelDepth (Surgery i) = i
 levelDepth NewGame = 0
+levelDepth Victory = 9001
 levelDepth Dead = 0
 
 goToNextLevel :: GameState -> GameState

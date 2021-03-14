@@ -250,7 +250,7 @@ generateMapFull c = do
   pure $
     { rooms
     , entrance: V{x:1,y:2}
-    , exit: spy "exit" exit
+    , exit: exit
     , doors
     }
 
@@ -285,14 +285,14 @@ blockAdjacencies a b = case areKissing sa.h sb.h of
 
 mapEdgeAdjacenciesForBlock :: Block -> Array (Vector Int)
 mapEdgeAdjacenciesForBlock b =
-  if  b.x == 1
-     || b.x + b.width == 18
-  then let ys = Array.range b.y (b.y+b.height)
-           x = if b.x == 1 then 0 else 19
-       in ys <#> \y -> V{x,y}
-  else let xs = Array.range b.x (b.x+b.width)
-           y = if b.y == 1 then 0 else 19
-       in xs <#> \x -> V{x,y}
+  case b.x == 1
+     || b.x + b.width == 19 of
+  true -> let ys = Array.range b.y (b.y+b.height-1)
+              x = if b.x == 1 then 0 else 19
+          in ys <#> \y -> V{x,y}
+  false -> let xs = Array.range b.x (b.x+b.width-1)
+               y = if b.y == 1 then 0 else 19
+           in xs <#> \x -> V{x,y}
 
 mapEdgeAdjacencies :: Array Block -> Array (Vector Int)
 mapEdgeAdjacencies blocks = Array.concat $ map mapEdgeAdjacenciesForBlock (Array.filter blockOnEdge blocks)

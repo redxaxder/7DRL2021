@@ -120,6 +120,7 @@ runUI uis (GameState gs) =
   Regular _ -> mapUI u (GameState gs)
   NewGame -> newGameUI u (GameState gs)
   Dead -> deadUI u (GameState gs)
+  Victory -> victoryUI u (GameState gs)
 
 mapUI :: UIState -> GameState -> UI Unit
 mapUI uis@(UIState u) gs@(GameState g) = do
@@ -337,6 +338,17 @@ newGameUI uis gs@(GameState g) = do
 
 deadUI :: UIState -> GameState -> UI Unit
 deadUI uis gs@(GameState g) = do
+  { time, value } <- F.input uis
+  case value of
+    KeyDown _ -> doAction StartNewGame time (setDirtyAll time uis) gs
+    _ -> runUI uis gs
+
+--------------------------------------------------------------------------------
+-- Victory ---------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+victoryUI :: UIState -> GameState -> UI Unit
+victoryUI uis gs@(GameState g) = do
   { time, value } <- F.input uis
   case value of
     KeyDown _ -> doAction StartNewGame time (setDirtyAll time uis) gs
