@@ -402,7 +402,7 @@ recalculatePDMap (GameState gs) =
 
 populateRoom :: GameState -> Room -> Random GameState
 populateRoom g room = do
-  let weight 0 = 4
+  let weight 0 = 2
       weight 1 = 4
       weight _ = 2
   numberOfEnemies <- R.unsafeWeightedElement "populateRoom" weight [0,1,2]
@@ -448,6 +448,8 @@ genHealth {armor, hp, injuries} = do
        # addOrgans as armorOrgan
        # addOrgans hs healthOrgan
        # injureMulti is
+
+-- surgeryRoomOrgans 
 
 --------------------------------------------------------------------------------
 
