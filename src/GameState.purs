@@ -176,10 +176,10 @@ freshPlayerHealth = Board.fromBoard freshPlayerBoard
 freshPlayerBoard :: Board
 freshPlayerBoard = Board
   { organs: emptyBag
-      # insertOrgan (vec 1 0) playerHpOrgan
-      # insertOrgan (vec 4 1) playerHpOrgan
+      # insertOrgan (vec 0 0) playerHpOrgan
       # insertOrgan (vec 0 3) playerHpOrgan
-      # insertOrgan (vec 3 4) playerHpOrgan
+      # insertOrgan (vec 3 0) playerHpOrgan
+      # insertOrgan (vec 3 3) playerHpOrgan
   , injuries: Set.empty
   }
 
