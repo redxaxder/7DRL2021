@@ -256,8 +256,6 @@ generateMapFull c = do
 
 genExit :: Array Room -> Random (Vector Int)
 genExit rooms = do
-  pos <- R.unsafeElement $ mapEdgeAdjacencies rooms
-  pure $ pos
   pos <- R.unsafeElement "genExit" $ mapEdgeAdjacencies rooms
   pure pos
 
