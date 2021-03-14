@@ -156,7 +156,6 @@ getClue p b =
         false, false -> EmptyClue
 
 
-
 countIntact :: (Organ -> Boolean) -> Board -> Int
 countIntact f b = Array.length $ Array.filter f (intactOrgans b)
 
@@ -197,6 +196,21 @@ data Clue =
   | MixedClue Int -- HealthAndArmor
   | ConcealedClue
   | EmptyClue
+
+type ClueVision =
+  { canSee :: Boolean
+  , hasSpecialEyes :: Boolean
+  }
+
+restrictClue :: Health -> Clue -> Clue
+restrictClue (Health {canSee,hasSpecialEyes}) c = go c
+  where
+  req true x = x
+  req false x = ConcealedClue
+  go (HpClue _) = req canSee c
+  go (ArmorClue _) = req hasSpecialEyes c
+  go (MixedClue _) = req (canSee && hasSpecialEyes) c
+  go _ = c
 
 randomUninjuredSpace :: Board -> R.Random (Maybe BoardCoord)
 randomUninjuredSpace (Board b) =

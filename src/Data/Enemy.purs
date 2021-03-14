@@ -88,8 +88,8 @@ s hp armor injuries minDepth weapon name image =
 stats :: EnemyTag -> EnemyStats
 --               hp arm inj lvl weap                     name              image
 stats Roomba = s  2   0  10  0  Point "murderous vacuum robot"      "roomba.png"
-stats Bot    = s  3   3   8  1  Point      "retired battlebot" "placeholder.png"
-stats Drone  = s  1   0   5  2  Point         "kamikaze drone"       "drone.png"
-stats Fridge = s  2   8  10  3  Point    "mobile refrigerator" "placeholder.png"
+stats Bot    = s  3   3   8  2  Point      "retired battlebot" "placeholder.png"
+stats Drone  = s  1   0   5  3  Point         "kamikaze drone"       "drone.png"
+stats Fridge = s  2   8  10  4  Point    "mobile refrigerator" "placeholder.png"
 
 type EnemyId = Int

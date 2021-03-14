@@ -105,8 +105,8 @@ die (GameState gs) = (GameState gs
     { p = startingPos
     , playerHealth = freshPlayerHealth
     , playerDistanceMap = Map.empty
-    , enemies = Map.empty -- exampleEnemies
-    , items = Map.empty -- exampleItems
+    , enemies = Map.empty
+    , items = Map.empty
     , level = Dead
     , availableOrgans = exampleOrgans
     , events = []
@@ -176,8 +176,9 @@ freshPlayerHealth = Board.fromBoard freshPlayerBoard
 freshPlayerBoard :: Board
 freshPlayerBoard = Board
   { organs: emptyBag
-      # insertOrgan (vec 0 0) playerHpOrgan
+      # insertOrgan (vec 1 1) humanEye
       # insertOrgan (vec 0 3) playerHpOrgan
+      # insertOrgan (vec 5 4) humanEye
       # insertOrgan (vec 3 0) playerHpOrgan
       # insertOrgan (vec 3 3) playerHpOrgan
   , injuries: Set.empty
@@ -188,6 +189,21 @@ hpOrgan1 = Organ (OrganSize 1 1) Hp
 
 playerHpOrgan :: Organ
 playerHpOrgan = Organ (OrganSize 2 2) PlayerHeartLarge
+
+humanEye :: Organ
+humanEye = Organ (OrganSize 1 1) HumanEye
+
+eyeRed :: Organ
+eyeRed = Organ (OrganSize 1 1) EyeRed
+
+eyeBlue :: Organ
+eyeBlue = Organ (OrganSize 1 1) EyeBlue
+
+eyeH :: Organ
+eyeH = Organ (OrganSize 1 1) EyeHoriz
+
+eyeV :: Organ
+eyeV = Organ (OrganSize 1 1) EyeVert
 
 isWall :: Vector Int -> LinearIndex Terrain -> Boolean
 isWall v t = (==) Wall $ fromMaybe Floor (LI.index t v)
@@ -217,23 +233,24 @@ handleAction g@(GameState gs) a@(Move dir) =
       false, _, _ -> Left (FailedAction dir)
       true,false,Nothing -> Right $ (GameState gs {p = p'})
         # reportEvent (PlayerMoved dir)
-        # openDoorAt p'
         # revealRooms
         # recalculatePDMap
         # enemyTurn
+        # openDoorAt p'
       true,false,Just{item,iid} -> Right $ (GameState gs {p = p'}) 
         # withRandom (healMany item)
-        # openDoorAt p'
         # useItem iid
         # reportEvent (PlayerMoved dir)
         # reportEvent (ItemUsed item)
         # revealRooms
         # recalculatePDMap
         # enemyTurn
+        # openDoorAt p'
       true,true,_ -> Right $ (GameState gs {p = p'})
         # goToNextLevel
         # reportEvent (PlayerMoved dir)
         # genNewMap
+        # revealRooms
         # genNewOrgans
         # recalculatePDMap
 
@@ -345,6 +362,10 @@ withRandom f gs@(GameState g) =
   let {result: (GameState nextG), nextGen} = R.runRandom (f gs) g.rng
    in GameState nextG{ rng = nextGen }
 
+--------------------------------------------------------------------------------
+-- Gen Stuff -------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
 genNewMap :: GameState -> GameState
 genNewMap = withRandom $ \(GameState gs) -> do
   let {width,height} = arena
@@ -363,6 +384,8 @@ genNewMap = withRandom $ \(GameState gs) -> do
   pure $ GameState gs
     { terrain = terrain
     , rooms = Map.fromFoldable (Array.zip rooms roomInfo)
+    , enemies = Map.empty
+    , items = Map.empty
     }
 
 genNewOrgans :: GameState -> GameState
@@ -379,6 +402,59 @@ recalculatePDMap (GameState gs) =
          pure x'
       newMap = Solver.distanceMap start expand
    in GameState gs { playerDistanceMap = newMap }
+
+populateRoom :: GameState -> Room -> Random GameState
+populateRoom g room = do
+  let weight 0 = 2
+      weight 1 = 4
+      weight _ = 2
+  numberOfEnemies <- R.unsafeWeightedElement "populateRoom" weight [0,1,2]
+  {head, tail} <- (unsafeFromJust <<< Array.uncons) <$>
+                     rollLocations (1 + numberOfEnemies) room
+  item <- genItem head g
+  enemies <- for tail \p -> genEnemy p g
+  pure $ g
+    # addItem item
+    # flip (foldr addEnemy) (Array.filter Enemy.isAlive enemies)
+
+rollLocations :: Int -> {x::Int,y::Int,width::Int,height::Int}
+    -> Random (Array BoardCoord)
+rollLocations 0 _ = pure []
+rollLocations n room = do
+  let candidates = Terrain.blockPositions room
+  for (Array.range 1 n) \_ -> R.unsafeElement "rollLocations" candidates
+
+genItem :: Vector Int -> GameState -> Random Item
+genItem location (GameState gs) = do
+  let d = levelDepth gs.level -- todo: incorporate this
+  pure $ Item {location, decay: 15, tag: HealthPickup 5}
+
+genEnemy :: Vector Int -> GameState -> Random Enemy
+genEnemy location (GameState gs)= do
+  let d = levelDepth gs.level
+      candidates = Enemy.allEnemies
+                 # Array.filter (\x -> (Enemy.stats x).minDepth <= d)
+  tag <- R.unsafeElement "genEnemy" candidates
+  health <- genHealth (Enemy.stats tag)
+  pure $ Enemy {location, health, tag, clueCache: Map.empty }
+       # recalculateClues
+
+genHealth :: EnemyStats -> Random Health
+genHealth {armor, hp, injuries} = do
+  let bounds = {x:0,y:0,width:6,height:6}
+      armorOrgan = Organ (OrganSize 1 1) Armor
+      healthOrgan = hpOrgan1
+  as <- rollLocations armor bounds
+  hs <- rollLocations hp bounds
+  is <- rollLocations injuries bounds
+  pure $ freshHealth
+       # addOrgans as armorOrgan
+       # addOrgans hs healthOrgan
+       # injureMulti is
+
+-- surgeryRoomOrgans 
+
+--------------------------------------------------------------------------------
 
 revealRooms :: GameState -> GameState
 revealRooms = withRandom \g@(GameState gs) ->
@@ -407,60 +483,12 @@ markVisible room (GameState gs) =
                            gs.rooms
                }
 
-populateRoom :: GameState -> Room -> Random GameState
-populateRoom g room = do
-  let weight 0 = 4
-      weight 1 = 4
-      weight _ = 2
-  numberOfEnemies <- R.unsafeWeightedElement "populateRoom" weight [0,1,2]
-  {head, tail} <- (unsafeFromJust <<< Array.uncons) <$>
-                     rollLocations (1 + numberOfEnemies) room
-  item <- genItem head g
-  enemies <- for tail \p -> genEnemy p g
-  pure $ g
-    # addItem item
-    # flip (foldr addEnemy) (Array.filter Enemy.isAlive enemies)
-
-rollLocations :: Int -> {x::Int,y::Int,width::Int,height::Int}
-    -> Random (Array BoardCoord)
-rollLocations 0 _ = pure []
-rollLocations n room = do
-  let candidates = Terrain.blockPositions room
-  for (Array.range 1 n) \_ -> R.unsafeElement "rollLocations" candidates
-
-genItem :: Vector Int -> GameState -> Random Item
-genItem location (GameState gs) = do
-  let d = levelDepth gs.level -- todo: incorporate this
-  pure $ Item {location, decay: 15, tag: HealthPickup 5}
 
 addItem :: Item -> GameState -> GameState
 addItem i (GameState gs) = GameState gs
   { items = Map.insert gs.nextId i gs.items
   , nextId = gs.nextId + 1
   }
-
-genEnemy :: Vector Int -> GameState -> Random Enemy
-genEnemy location (GameState gs)= do
-  let d = levelDepth gs.level
-      candidates = Enemy.allEnemies
-                 # Array.filter (\x -> (Enemy.stats x).minDepth <= d)
-  tag <- R.unsafeElement "genEnemy" candidates
-  health <- genHealth (Enemy.stats tag)
-  pure $ Enemy {location, health, tag, clueCache: Map.empty }
-       # recalculateClues
-
-genHealth :: EnemyStats -> Random Health
-genHealth {armor, hp, injuries} = do
-  let bounds = {x:0,y:0,width:6,height:6}
-      armorOrgan = Organ (OrganSize 1 1) Armor
-      healthOrgan = hpOrgan1
-  as <- rollLocations armor bounds
-  hs <- rollLocations hp bounds
-  is <- rollLocations injuries bounds
-  pure $ freshHealth
-       -- # addOrgans as armorOrgan
-       # addOrgans hs healthOrgan
-       # injureMulti is
 
 
 addEnemy :: Enemy -> GameState -> GameState
@@ -576,15 +604,16 @@ enemyAttack g eid = withRandom go g
   go :: GameState -> R.Random GameState
   go (GameState gs) = do
     let (Health h) = gs.playerHealth
+        canAttack = Just DoorClosed /= LI.index gs.terrain gs.p
     mattack <- randomUninjuredSpace h.board
-    case mattack of
-         Nothing -> pure g
-         Just attack -> do
-          let newHealth = injure attack gs.playerHealth
-          pure $ GameState gs { playerHealth = newHealth }
-             # if Board.isAlive newHealth
-               then reportEvent (EnemyAttacked eid attack)
-               else reportEvent PlayerDied
+    case canAttack, mattack of
+         true, Just attack -> do
+           let newHealth = injure attack gs.playerHealth
+           pure $ GameState gs { playerHealth = newHealth }
+                # if Board.isAlive newHealth
+                  then reportEvent (EnemyAttacked eid attack)
+                  else reportEvent PlayerDied
+         _,_ -> pure g
 
 --------------------------------------------------------------------------------
 --- Organs ---------------------------------------------------------------------
