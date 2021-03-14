@@ -250,6 +250,7 @@ handleAction g@(GameState gs) a@(Move dir) =
         # goToNextLevel
         # reportEvent (PlayerMoved dir)
         # genNewMap
+        # revealRooms
         # genNewOrgans
         # recalculatePDMap
 
