@@ -436,6 +436,7 @@ uiEvent t (PlayerAttacked _) uis = uis
   # enqueueAudio t "pew1.mp3"
 uiEvent t (EnemyDied _) uis = uis
   # enqueueAudio t "Clang1.mp3"
+uiEvent t (ItemUsed _) uis = setDirtyUI t uis
 uiEvent t _ uis = uis
 
 getDir :: String -> Maybe Direction
