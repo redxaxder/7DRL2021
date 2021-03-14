@@ -443,6 +443,8 @@ uiEvent t (PlayerAttacked _) uis = uis
   # enqueueAudio t "pew1.mp3"
 uiEvent t (EnemyDied _) uis = uis
   # enqueueAudio t "Clang1.mp3"
+uiEvent t (EnemyAttacked _ _) uis = uis
+  # enqueueAudio t "Taser1.mp3"
 uiEvent t (ItemUsed _) uis = setDirtyUI t uis
 uiEvent t _ uis = uis
 
@@ -752,12 +754,12 @@ imagePaths =
 audioPaths :: Array String
 audioPaths =
   [ "Clang1.mp3"
-  , "Organ1.mp3"
+  -- , "Organ1.mp3"
   , "Organ2.mp3"
   , "Organ3.mp3"
   , "Puip1.mp3"
   , "Taser1.mp3"
-  , "Tink1.mp3"
-  , "Tink2.mp3"
+  -- , "Tink1.mp3"
+  -- , "Tink2.mp3"
   , "pew1.mp3"
   ]
