@@ -258,6 +258,8 @@ genExit :: Array Room -> Random (Vector Int)
 genExit rooms = do
   pos <- R.unsafeElement $ mapEdgeAdjacencies rooms
   pure $ pos
+  pos <- R.unsafeElement "genExit" $ mapEdgeAdjacencies rooms
+  pure pos
 
 type Door =
   { pos :: Vector Int
@@ -266,7 +268,7 @@ type Door =
 
 genDoors :: AdjMap Room -> Random (Array Door)
 genDoors rooms = for (getEdges rooms) \ {a,b} -> do
-  pos <- R.unsafeElement $ roomAdjacencies (lookup a rooms) (lookup b rooms)
+  pos <- R.unsafeElement "genDoors" $ roomAdjacencies (lookup a rooms) (lookup b rooms)
   pure {pos, connectedRooms: [a,b]}
 
 blockAdjacencies :: Block -> Block -> Array (Vector Int)

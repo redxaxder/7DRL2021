@@ -98,20 +98,22 @@ intRange :: Int -> Int -> Random Int
 intRange low high = flip map nextInt $ \i -> (i `mod` (high - low + 1)) + low
 
 element :: forall a. NonEmptyArray a -> Random a
-element = unsafeElement <<< toArray
+element = unsafeElement "it was nonempty!" <<< toArray
 
-unsafeElement :: forall a. Array a -> Random a
-unsafeElement arr = unsafeIndex arr <$> intRange 0 (length arr - 1)
+unsafeElement :: forall a. String -> Array a -> Random a
+unsafeElement ifCrash arr = unsafeIndex ifCrash arr <$> intRange 0 (length arr - 1)
 
-unsafeIndex :: forall a. Array a -> Int -> a
-unsafeIndex a i = unsafePartial $ fromJust $ Array.index a i
+unsafeIndex :: forall a. String -> Array a -> Int -> a
+unsafeIndex ifCrash a i = case Array.index a i of
+  Just x -> x
+  Nothing -> impossible ifCrash
 
-unsafeWeightedElement :: forall a. (a -> Int) -> Array a -> Random a
-unsafeWeightedElement weight xs = do
+unsafeWeightedElement :: forall a. String -> (a -> Int) -> Array a -> Random a
+unsafeWeightedElement ifCrash weight xs = do
   let cumWeights = Array.scanl (\cumWeight x -> cumWeight + weight x) 0 xs
   w <- intRange 0 (unsafePartial (fromJust (Array.last cumWeights)) - 1)
   let i = unsafePartial $ fromJust $ Array.findIndex (\cw -> cw > w) cumWeights
-  pure $ unsafeIndex xs i
+  pure $ unsafeIndex ifCrash xs i
 
 newtype Random a = Random (Gen -> { result :: a, nextGen :: Gen })
 

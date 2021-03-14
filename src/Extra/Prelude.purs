@@ -40,6 +40,7 @@ module Extra.Prelude
   , todo
   , unsafeFromJust
   , while
+  , impossible
   ) where
 
 import Prelude
@@ -86,6 +87,8 @@ import Data.Tuple (Tuple(..), uncurry)
 import Data.Unfoldable (class Unfoldable, unfoldr)
 import Debug.Trace (trace, spy)
 import Effect (Effect)
+import Effect.Console (log)
+import Effect.Unsafe (unsafePerformEffect)
 import Extra.Math (class Real, Vector(..), innerProduct, norm, toNumber, (**), vec)
 import Partial (crash)
 import Partial.Unsafe (unsafePartial)
@@ -136,6 +139,12 @@ filterSet f = flip foldr S.empty $ \x set ->
 
 todo :: forall a. Warn (Text "Not implemented") => a
 todo = unsafePartial $ crash "Not implemented"
+
+impossible :: forall a. String -> a
+impossible s =
+  let m = "But this was impossible!!! " <> s
+      _ = unsafePerformEffect (log m)
+  in unsafePartial $ crash m
 
 countIf :: forall a t. Foldable t => (a -> Boolean) -> t a -> Int
 countIf f xs = foldr g 0 xs

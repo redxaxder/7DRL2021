@@ -412,7 +412,7 @@ populateRoom g room = do
   let weight 0 = 4
       weight 1 = 4
       weight _ = 2
-  numberOfEnemies <- R.unsafeWeightedElement weight [0,1,2]
+  numberOfEnemies <- R.unsafeWeightedElement "populateRoom" weight [0,1,2]
   {head, tail} <- (unsafeFromJust <<< Array.uncons) <$>
                      rollLocations (1 + numberOfEnemies) room
   item <- genItem head g
@@ -426,7 +426,7 @@ rollLocations :: Int -> {x::Int,y::Int,width::Int,height::Int}
 rollLocations 0 _ = pure []
 rollLocations n room = do
   let candidates = Terrain.blockPositions room
-  for (Array.range 1 n) \_ -> R.unsafeElement candidates
+  for (Array.range 1 n) \_ -> R.unsafeElement "rollLocations" candidates
 
 genItem :: Vector Int -> GameState -> Random Item
 genItem location (GameState gs) = do
@@ -444,9 +444,8 @@ genEnemy location (GameState gs)= do
   let d = levelDepth gs.level
       candidates = Enemy.allEnemies
                  # Array.filter (\x -> (Enemy.stats x).minDepth <= d)
-  tag <- R.unsafeElement candidates
+  tag <- R.unsafeElement "genEnemy" candidates
   health <- genHealth (Enemy.stats tag)
-  let _ = spy "hmm" {tag, health}
   pure $ Enemy {location, health, tag, clueCache: Map.empty }
        # recalculateClues
 
@@ -487,8 +486,8 @@ levelDepth :: Level -> Int
 levelDepth (Regular i) = i
 levelDepth (Surgery i) = i
 levelDepth NewGame = 0
-levelDepth Dead = -1
 levelDepth Victory = 9001
+levelDepth Dead = 0
 
 goToNextLevel :: GameState -> GameState
 goToNextLevel (GameState gs) = GameState gs { level = nextLevel gs.level }
@@ -577,12 +576,15 @@ enemyAttack g eid = withRandom go g
   go :: GameState -> R.Random GameState
   go (GameState gs) = do
     let (Health h) = gs.playerHealth
-    attack <- randomUninjuredSpace h.board
-    let (Health newHealth) = injure attack gs.playerHealth
-    pure $ GameState gs { playerHealth = (Health newHealth) }
-       # if newHealth.hpCount <= 0
-         then reportEvent PlayerDied
-         else reportEvent (EnemyAttacked eid attack)
+    mattack <- randomUninjuredSpace h.board
+    case mattack of
+         Nothing -> pure g
+         Just attack -> do
+          let newHealth = injure attack gs.playerHealth
+          pure $ GameState gs { playerHealth = newHealth }
+             # if Board.isAlive newHealth
+               then reportEvent (EnemyAttacked eid attack)
+               else reportEvent PlayerDied
 
 --------------------------------------------------------------------------------
 --- Organs ---------------------------------------------------------------------
