@@ -32,6 +32,8 @@ import Data.Board
   , getOrganAtPosition
   , getOrgans
   , organArray
+  , hasRedEye
+  , hasBlueEye
   )
 import Data.Terrain
   ( Terrain(..)
@@ -204,21 +206,44 @@ draw t uis@(UIState {timestamp, gsTimestamp}) gs@(GameState g) rs@(RendererState
   drawDraggedOrgan uis gs rs
   debugInfo rs
 
-
 drawPlayerBoard :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
-drawPlayerBoard t uis (GameState {playerHealth}) rs = do
-  let playerHp = (un Health playerHealth).hpCount
-      playerBoard = (un Health playerHealth).board
+drawPlayerBoard t uis (GameState gs) rs = do
+  let playerBoard = (un Health gs.playerHealth).board
       playerOrgans = getOrgans playerBoard
       anchor = let {x,y} = playerBoardRect in V{x,y}
   clear rs leftPaneRect
-  drawText rs tileSize (show playerHp) (V{ x:tileSize, y:0.0 })
-  drawImage rs "heart.png" { x:0.0, y: 0.0, width: tileSize, height: tileSize }
+  drawStats rs (GameState gs)
   drawBoardBase rs playerBoard playerBoardRect
   for_ playerOrgans.intact \(Tuple organ bc) ->
     drawOrgan true rs organ (fromGrid bc + anchor)
   for_ playerOrgans.injured \(Tuple organ bc) ->
     drawOrgan false rs organ (fromGrid bc + anchor)
+
+drawStats :: RendererState -> GameState -> Effect Unit
+drawStats rs gs = do
+  drawHp rs gs
+  drawRedVision rs gs
+  drawBlueVision rs gs
+
+drawHp :: RendererState -> GameState -> Effect Unit
+drawHp rs (GameState gs) = do
+  let playerHp = (un Health gs.playerHealth).hpCount
+  drawText rs tileSize (show playerHp) (V{ x:tileSize, y:0.0 })
+  drawImage rs "heart.png" { x:0.0, y: 0.0, width: tileSize, height: tileSize }
+
+drawRedVision :: RendererState -> GameState -> Effect Unit
+drawRedVision rs (GameState gs) = do
+  let playerBoard = (un Health gs.playerHealth).board
+  if hasRedEye playerBoard
+  then drawImage rs "Eye2.png" { x: tileSize * 2.0, y: 0.0, width: tileSize, height: tileSize}
+  else pure unit
+
+drawBlueVision :: RendererState -> GameState -> Effect Unit
+drawBlueVision rs (GameState gs) = do
+  let playerBoard = (un Health gs.playerHealth).board
+  if hasBlueEye playerBoard
+  then drawImage rs "Eye3.png" { x: tileSize * 4.0, y: 0.0, width: tileSize, height: tileSize}
+  else pure unit
 
 drawCenterPane :: Instant -> UIState -> GameState -> RendererState -> Effect Unit
 drawCenterPane

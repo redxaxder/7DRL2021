@@ -92,7 +92,6 @@ extent (Organ (OrganSize w h) _) pos = do
   y <- Array.range 0 (h - 1)
   pure (pos + V{x,y})
 
-
 organArray :: OrganBag -> Array InternalOrgan
 organArray = RevMap.uniqueValues
 
@@ -154,7 +153,6 @@ getClue p b =
         false, true -> ArmorClue armorOrgans
         true, true -> MixedClue (armorOrgans + hpOrgans)
         false, false -> EmptyClue
-
 
 countIntact :: (Organ -> Boolean) -> Board -> Int
 countIntact f b = Array.length $ Array.filter f (intactOrgans b)
